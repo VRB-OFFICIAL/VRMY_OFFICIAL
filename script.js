@@ -63,6 +63,8 @@ if(CONFIGURED){
 
   const dmSignedOut = document.getElementById('dm-signed-out');
   const dmSignedIn = document.getElementById('dm-signed-in');
+  const dmNameInput = document.getElementById('dm-name-input');
+  const dmNameSaveBtn = document.getElementById('dm-name-save-btn');
   const dmTargetEmail = document.getElementById('dm-target-email');
   const dmOpenBtn = document.getElementById('dm-open-btn');
   const dmThreadLabel = document.getElementById('dm-thread-label');
@@ -72,6 +74,7 @@ if(CONFIGURED){
 
   let currentDmConvo = null;
   let dmUnsub = null;
+  let myDisplayName = '';
 
   let latestKills = [];
   let latestSkill = [];
@@ -109,6 +112,8 @@ if(CONFIGURED){
     if(!user){
       if(dmUnsub){ dmUnsub(); dmUnsub = null; }
       currentDmConvo = null;
+      myDisplayName = '';
+      dmNameInput.value = '';
       dmThreadLabel.textContent = 'no conversation open';
       dmLog.innerHTML = '<div class="empty-state">open a DM above to see messages</div>';
       dmMsgInput.disabled = true;
@@ -126,11 +131,16 @@ if(CONFIGURED){
     auth.onAuthStateChanged(user => {
       updateAuthUI(user);
       if(user && db){
-        db.collection('users').doc(user.uid).set({
-          email: user.email,
-          displayName: user.displayName || '',
-          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        }, { merge: true }).catch(e => console.error('profile upsert failed', e));
+        db.collection('users').doc(user.uid).get().then(doc => {
+          const existing = doc.exists ? doc.data().displayName : null;
+          myDisplayName = existing || user.displayName || user.email.split('@')[0];
+          dmNameInput.value = myDisplayName;
+          return db.collection('users').doc(user.uid).set({
+            email: user.email,
+            displayName: myDisplayName,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+        }).catch(e => console.error('profile load/upsert failed', e));
       }
     });
   }
@@ -326,6 +336,20 @@ if(CONFIGURED){
     return [uidA, uidB].sort().join('_');
   }
 
+  async function saveDisplayName(){
+    if(!auth || !auth.currentUser || !db) return;
+    const name = dmNameInput.value.trim().slice(0,24);
+    if(!name) return;
+    dmNameSaveBtn.disabled = true;
+    try{
+      await db.collection('users').doc(auth.currentUser.uid).set({
+        displayName: name
+      }, { merge: true });
+      myDisplayName = name;
+    }catch(e){ console.error('save display name failed', e); }
+    dmNameSaveBtn.disabled = false;
+  }
+
   function renderDm(messages){
     if(!messages.length){
       dmLog.innerHTML = '<div class="empty-state">no messages yet — say hello</div>';
@@ -335,10 +359,11 @@ if(CONFIGURED){
     const myUid = auth.currentUser ? auth.currentUser.uid : null;
     dmLog.innerHTML = messages.map(m=>{
       const mine = m.senderId === myUid;
+      const who = mine ? 'You' : (m.senderName || m.senderEmail);
       return `
         <div class="msg ${mine ? 'mine' : ''}">
           <span class="when">${timeAgo(m.t)}</span>
-          <span class="who">${escapeHtml(mine ? 'You' : m.senderEmail)}</span>
+          <span class="who">${escapeHtml(who)}</span>
           <span class="body">${escapeHtml(m.text)}</span>
         </div>
       `;
@@ -346,10 +371,10 @@ if(CONFIGURED){
     if(wasNearBottom) dmLog.scrollTop = dmLog.scrollHeight;
   }
 
-  function subscribeToDm(convoId, otherEmail){
+  function subscribeToDm(convoId, otherLabel){
     if(dmUnsub){ dmUnsub(); dmUnsub = null; }
     currentDmConvo = convoId;
-    dmThreadLabel.textContent = 'Chatting with: ' + otherEmail;
+    dmThreadLabel.textContent = 'Chatting with: ' + otherLabel;
     dmMsgInput.disabled = false;
     dmSendBtn.disabled = false;
     dmLog.innerHTML = '<div class="empty-state">loading…</div>';
@@ -375,8 +400,9 @@ if(CONFIGURED){
       if(snap.empty){
         dmThreadLabel.textContent = 'No signed-in user found with that email yet.';
       } else {
+        const otherData = snap.docs[0].data();
         const otherUid = snap.docs[0].id;
-        subscribeToDm(convoIdFor(auth.currentUser.uid, otherUid), email);
+        subscribeToDm(convoIdFor(auth.currentUser.uid, otherUid), otherData.displayName || email);
       }
     }catch(e){ console.error('open dm failed', e); }
     dmOpenBtn.disabled = false;
@@ -391,6 +417,7 @@ if(CONFIGURED){
       await db.collection('dms').doc(currentDmConvo).collection('messages').add({
         senderId: auth.currentUser.uid,
         senderEmail: auth.currentUser.email,
+        senderName: myDisplayName || auth.currentUser.email,
         text,
         t: firebase.firestore.FieldValue.serverTimestamp()
       });
@@ -400,6 +427,8 @@ if(CONFIGURED){
     dmMsgInput.focus();
   }
 
+  dmNameSaveBtn.addEventListener('click', saveDisplayName);
+  dmNameInput.addEventListener('keydown', e=>{ if(e.key === 'Enter') saveDisplayName(); });
   dmOpenBtn.addEventListener('click', openDm);
   dmTargetEmail.addEventListener('keydown', e=>{ if(e.key === 'Enter') openDm(); });
   dmSendBtn.addEventListener('click', sendDm);
