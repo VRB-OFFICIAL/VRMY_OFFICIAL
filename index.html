@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VRMY_OFFICIAL</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="grad-tier-1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#8B5A2B"/><stop offset="100%" stop-color="#4E2F13"/>
+    </linearGradient>
+    <linearGradient id="grad-tier-2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#D98A3D"/><stop offset="100%" stop-color="#8C5423"/>
+    </linearGradient>
+    <linearGradient id="grad-tier-3" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#9A9A9A"/><stop offset="100%" stop-color="#454545"/>
+    </linearGradient>
+    <linearGradient id="grad-tier-4" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#D2D9DD"/><stop offset="100%" stop-color="#7C8A94"/>
+    </linearGradient>
+    <linearGradient id="grad-tier-5" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F3F8F7"/><stop offset="100%" stop-color="#B8C4C2"/>
+    </linearGradient>
+    <linearGradient id="grad-tier-6" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFE58A"/><stop offset="100%" stop-color="#C9971F"/>
+    </linearGradient>
+    <linearGradient id="grad-tier-7" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#6FAEEA"/><stop offset="100%" stop-color="#1B4F91"/>
+    </linearGradient>
+    <linearGradient id="grad-tier-8" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F0576D"/><stop offset="100%" stop-color="#8C1A2B"/>
+    </linearGradient>
+    <linearGradient id="grad-tier-9" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F0FDFF"/><stop offset="100%" stop-color="#6FD8E8"/>
+    </linearGradient>
+    <linearGradient id="grad-tier-10" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFE58A"/><stop offset="40%" stop-color="#FFB627"/>
+      <stop offset="75%" stop-color="#FF7AE0"/><stop offset="100%" stop-color="#7EC8FF"/>
+    </linearGradient>
+  </defs>
+</svg>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <h1>VRMY_OFFICIAL</h1>
+      <div class="tag">community broadcast terminal</div>
+    </div>
+    <div style="display:flex; align-items:center; gap:16px;">
+      <div id="auth-widget" class="auth-widget">
+        <button id="auth-signin-btn" class="ghost-btn">Sign In</button>
+        <span id="auth-status" style="display:none;"></span>
+        <button id="auth-signout-btn" class="ghost-btn" style="display:none;">Sign Out</button>
+      </div>
+      <div class="signal ok" id="signal-indicator"><span class="dot"></span><span id="signal-text">LIVE</span></div>
+    </div>
+  </header>
+
+  <div id="setup-banner" class="setup-banner">
+    <b>Setup needed:</b> this site needs a free Firebase project connected before chat and rankings will save.
+    Open <code>script.js</code> in a text editor, find the <code>firebaseConfig</code> object near the top, and paste in your project's config values.
+    Full instructions were given alongside this file.
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="chat">Transmission</div>
+    <div class="tab" data-tab="lb">Rankings</div>
+    <div class="tab" data-tab="dm">Direct</div>
+  </div>
+
+  <section id="panel-chat" class="frame">
+    <div class="c2"></div>
+    <div class="panel-label">// live channel</div>
+    <div id="chat-log" class="chat-log"><div class="empty-state">no transmissions yet — say something</div></div>
+    <div class="chat-input-row">
+      <input type="text" id="name-input" placeholder="callsign" maxlength="20">
+      <input type="text" id="msg-input" placeholder="type a message..." maxlength="500">
+      <button id="send-btn">Send</button>
+    </div>
+  </section>
+
+  <section id="panel-lb" class="frame" style="display:none">
+    <div class="c2"></div>
+    <div class="panel-label">// rankings</div>
+
+    <div class="subtabs">
+      <div class="subtab active" data-subtab="kills">Kills</div>
+      <div class="subtab" data-subtab="skill">Skill Rank</div>
+    </div>
+
+    <!-- KILLS BOARD -->
+    <div id="board-kills">
+      <div class="lb-add" id="kills-add-form" style="display:none">
+        <input type="text" id="kills-name" placeholder="name" maxlength="24">
+        <input type="number" id="kills-count" placeholder="kills">
+        <button id="kills-add-btn">Add</button>
+      </div>
+      <div id="kills-viewonly" class="viewonly-note">Sign in as admin to add or edit entries.</div>
+      <table>
+        <thead><tr><th>Rank</th><th>Name</th><th style="text-align:right; padding-right:14px;">Kills</th><th></th></tr></thead>
+        <tbody id="kills-body"></tbody>
+      </table>
+      <div id="kills-empty" class="empty-state" style="display:none;">no kills logged yet — add the first name</div>
+    </div>
+
+    <!-- SKILL BOARD -->
+    <div id="board-skill" style="display:none">
+      <div class="lb-add" id="skill-add-form" style="display:none">
+        <input type="text" id="skill-name" placeholder="name" maxlength="24">
+        <select id="skill-tier">
+          <option value="1">Novice (Tier 1)</option>
+          <option value="2">Apprentice (Tier 2)</option>
+          <option value="3">Combatant (Tier 3)</option>
+          <option value="4">Warrior (Tier 4)</option>
+          <option value="5">Vanguard (Tier 5)</option>
+          <option value="6">High Striker (Tier 6)</option>
+          <option value="7">High Elite (Tier 7)</option>
+          <option value="8">Apex (Tier 8)</option>
+          <option value="9">The Elite Guardian (Tier 9)</option>
+          <option value="10">Omnipotens (The All-Powerful) (Tier 10)</option>
+        </select>
+        <input type="number" id="skill-rank" placeholder="#rank">
+        <button id="skill-add-btn">Add</button>
+      </div>
+      <div id="skill-viewonly" class="viewonly-note">Sign in as admin to add or edit entries.</div>
+      <table>
+        <thead><tr><th>Rank</th><th>Name</th><th>Tier</th><th></th></tr></thead>
+        <tbody id="skill-body"></tbody>
+      </table>
+      <div id="skill-empty" class="empty-state" style="display:none;">no rankings yet — add the first name</div>
+    </div>
+  </section>
+
+  <section id="panel-dm" class="frame" style="display:none">
+    <div class="c2"></div>
+    <div class="panel-label">// private channel</div>
+
+    <div id="dm-signed-out" class="viewonly-note" style="margin-bottom:0;">
+      Sign in (top right) to send and receive private messages.
+    </div>
+
+    <div id="dm-signed-in" style="display:none">
+      <div class="chat-input-row" style="margin-bottom:16px;">
+        <input type="text" id="dm-target-email" placeholder="friend's email" style="flex:1;">
+        <button id="dm-open-btn">Open DM</button>
+      </div>
+      <div id="dm-thread-label" class="panel-label" style="margin-bottom:10px;">no conversation open</div>
+      <div id="dm-log" class="chat-log"><div class="empty-state">open a DM above to see messages</div></div>
+      <div class="chat-input-row">
+        <input type="text" id="dm-msg-input" placeholder="type a private message..." maxlength="500" disabled style="flex:1;">
+        <button id="dm-send-btn" disabled>Send</button>
+      </div>
+    </div>
+  </section>
+
+  <footer>VRMY_OFFICIAL &mdash; live for everyone who visits this site</footer>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
