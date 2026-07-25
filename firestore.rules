@@ -7,10 +7,13 @@ service cloud.firestore {
         request.auth.token.email in ['kokomona946@gmail.com', 'kokomina946@gmail.com'];
     }
 
-    // chat: anyone can read and post, only admin can edit/delete messages
+    // chat: read is open to everyone, but posting requires a signed-in,
+    // verified username — the posted name must match the caller's own.
     match /messages/{id} {
       allow read: if true;
-      allow create: if request.resource.data.name is string
+      allow create: if request.auth != null
+                    && request.resource.data.name ==
+                       get(/databases/$(database)/documents/users/$(request.auth.uid)).data.username
                     && request.resource.data.text is string
                     && request.resource.data.text.size() > 0
                     && request.resource.data.text.size() <= 500;

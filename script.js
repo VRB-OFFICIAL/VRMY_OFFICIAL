@@ -36,7 +36,8 @@ if(CONFIGURED){
 
 (function(){
   const chatLog = document.getElementById('chat-log');
-  const nameInput = document.getElementById('name-input');
+  const chatViewonly = document.getElementById('chat-viewonly');
+  const chatInputRow = document.getElementById('chat-input-row');
   const msgInput = document.getElementById('msg-input');
   const sendBtn = document.getElementById('send-btn');
 
@@ -125,17 +126,26 @@ if(CONFIGURED){
       dmSendBtn.disabled = true;
       dmTargetUsername.value = '';
     }
+    updateChatAccess();
+  }
+
+  function updateChatAccess(){
+    const canChat = !!(auth && auth.currentUser && myUsername);
+    chatInputRow.style.display = canChat ? '' : 'none';
+    chatViewonly.style.display = canChat ? 'none' : '';
   }
 
   function showUsernamePicker(){
     dmUsernamePicker.style.display = '';
     dmUsernameLocked.style.display = 'none';
+    updateChatAccess();
   }
   function showUsernameLocked(username){
     myUsername = username;
     dmMyUsername.textContent = username;
     dmUsernamePicker.style.display = 'none';
     dmUsernameLocked.style.display = '';
+    updateChatAccess();
   }
 
   if(auth){
@@ -185,9 +195,6 @@ if(CONFIGURED){
       document.getElementById('board-skill').style.display = isKills ? 'none' : '';
     });
   });
-
-  const savedName = localStorage.getItem('vrmy_callsign');
-  if(savedName) nameInput.value = savedName;
 
   function escapeHtml(s){
     return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -335,14 +342,13 @@ if(CONFIGURED){
 
   // ---------- CHAT ----------
   async function sendMessage(){
-    const name = (nameInput.value || 'anon').trim().slice(0,20) || 'anon';
+    if(!auth || !auth.currentUser || !myUsername || !db) return;
     const text = msgInput.value.trim();
-    if(!text || !db) return;
-    localStorage.setItem('vrmy_callsign', name);
+    if(!text) return;
     sendBtn.disabled = true;
     try{
       await db.collection('messages').add({
-        name, text, t: firebase.firestore.FieldValue.serverTimestamp()
+        name: myUsername, text, t: firebase.firestore.FieldValue.serverTimestamp()
       });
       msgInput.value = '';
     }catch(e){ console.error('send failed', e); }

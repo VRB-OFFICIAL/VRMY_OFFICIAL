@@ -78,9 +78,9 @@
     <div class="c2"></div>
     <div class="panel-label">// live channel</div>
     <div id="chat-log" class="chat-log"><div class="empty-state">no transmissions yet — say something</div></div>
-    <div class="chat-input-row">
-      <input type="text" id="name-input" placeholder="callsign" maxlength="20">
-      <input type="text" id="msg-input" placeholder="type a message..." maxlength="500">
+    <div id="chat-viewonly" class="viewonly-note">Sign in and claim a username (Direct tab) to chat.</div>
+    <div class="chat-input-row" id="chat-input-row" style="display:none">
+      <input type="text" id="msg-input" placeholder="type a message..." maxlength="500" style="flex:1;">
       <button id="send-btn">Send</button>
     </div>
   </section>
