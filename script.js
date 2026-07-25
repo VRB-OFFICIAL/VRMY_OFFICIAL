@@ -4,12 +4,12 @@
       > Your apps > SDK setup and configuration > Config
    ============================================================ */
 const firebaseConfig = {
-  apiKey: "PASTE_YOUR_API_KEY",
-  authDomain: "PASTE_YOUR_PROJECT.firebaseapp.com",
-  projectId: "PASTE_YOUR_PROJECT_ID",
-  storageBucket: "PASTE_YOUR_PROJECT.appspot.com",
-  messagingSenderId: "PASTE_YOUR_SENDER_ID",
-  appId: "PASTE_YOUR_APP_ID"
+  apiKey: "AIzaSyBX-ufsyFI3LiCBjbwI8Rtjk8HBK6sdou0",
+  authDomain: "vrmy-f116a.firebaseapp.com",
+  projectId: "vrmy-f116a",
+  storageBucket: "vrmy-f116a.firebasestorage.app",
+  messagingSenderId: "831971282778",
+  appId: "1:831971282778:web:d7327ffcf560df60456d63"
 };
 /* ============================================================ */
 
