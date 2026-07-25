@@ -29,11 +29,25 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // user directory: lets signed-in people look each other up by email to start a DM.
-    // each user can only write their own profile document.
+    // user profiles: no email is ever stored or exposed here.
+    // once a username is set, it can never be changed via this doc.
     match /users/{uid} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == uid;
+      allow create: if request.auth != null && request.auth.uid == uid;
+      allow update: if request.auth != null && request.auth.uid == uid
+                    && (!('username' in resource.data)
+                        || request.resource.data.username == resource.data.username);
+    }
+
+    // username registry: one doc per lowercase username, permanently claimed.
+    // "create" only succeeds if nobody already owns that name; it can never
+    // be updated or deleted, which is what makes usernames permanent.
+    match /usernames/{uname} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+                    && request.resource.data.uid == request.auth.uid
+                    && !exists(/databases/$(database)/documents/usernames/$(uname));
+      allow update, delete: if false;
     }
 
     // private 1-on-1 DMs. Convo id is "<uidA>_<uidB>" (sorted), so only the

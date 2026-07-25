@@ -146,12 +146,24 @@
     </div>
 
     <div id="dm-signed-in" style="display:none">
-      <div class="chat-input-row" style="margin-bottom:10px;">
-        <input type="text" id="dm-name-input" placeholder="your display name" maxlength="24" style="flex:1;">
-        <button id="dm-name-save-btn">Save Name</button>
+
+      <!-- shown only until the user has claimed a permanent username -->
+      <div id="dm-username-picker" style="display:none; margin-bottom:16px;">
+        <div class="viewonly-note" style="margin-bottom:8px;">Choose a username — this is permanent and can't be changed later. Others will find you by this name.</div>
+        <div class="chat-input-row">
+          <input type="text" id="dm-username-input" placeholder="pick a username" maxlength="20" style="flex:1;">
+          <button id="dm-username-claim-btn">Claim Username</button>
+        </div>
+        <div id="dm-username-error" style="display:none; color: var(--red); font-size: 12px; margin-top:6px;"></div>
       </div>
+
+      <!-- shown once a username is set -->
+      <div id="dm-username-locked" style="display:none; margin-bottom:16px;">
+        <div class="panel-label" style="margin-bottom:0;">your username: <span id="dm-my-username" style="color: var(--amber);"></span></div>
+      </div>
+
       <div class="chat-input-row" style="margin-bottom:16px;">
-        <input type="text" id="dm-target-email" placeholder="friend's email" style="flex:1;">
+        <input type="text" id="dm-target-username" placeholder="search a username" style="flex:1;">
         <button id="dm-open-btn">Open DM</button>
       </div>
       <div id="dm-thread-label" class="panel-label" style="margin-bottom:10px;">no conversation open</div>

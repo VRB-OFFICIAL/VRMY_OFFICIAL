@@ -63,9 +63,13 @@ if(CONFIGURED){
 
   const dmSignedOut = document.getElementById('dm-signed-out');
   const dmSignedIn = document.getElementById('dm-signed-in');
-  const dmNameInput = document.getElementById('dm-name-input');
-  const dmNameSaveBtn = document.getElementById('dm-name-save-btn');
-  const dmTargetEmail = document.getElementById('dm-target-email');
+  const dmUsernamePicker = document.getElementById('dm-username-picker');
+  const dmUsernameInput = document.getElementById('dm-username-input');
+  const dmUsernameClaimBtn = document.getElementById('dm-username-claim-btn');
+  const dmUsernameError = document.getElementById('dm-username-error');
+  const dmUsernameLocked = document.getElementById('dm-username-locked');
+  const dmMyUsername = document.getElementById('dm-my-username');
+  const dmTargetUsername = document.getElementById('dm-target-username');
   const dmOpenBtn = document.getElementById('dm-open-btn');
   const dmThreadLabel = document.getElementById('dm-thread-label');
   const dmLog = document.getElementById('dm-log');
@@ -74,7 +78,7 @@ if(CONFIGURED){
 
   let currentDmConvo = null;
   let dmUnsub = null;
-  let myDisplayName = '';
+  let myUsername = null;
 
   let latestKills = [];
   let latestSkill = [];
@@ -86,14 +90,14 @@ if(CONFIGURED){
       authSignoutBtn.style.display = '';
       authStatus.style.display = '';
       authStatus.classList.add('is-admin');
-      authStatus.textContent = 'Admin: ' + user.email;
+      authStatus.textContent = 'Admin';
     } else if(user){
       isAdmin = false;
       authSigninBtn.style.display = 'none';
       authSignoutBtn.style.display = '';
       authStatus.style.display = '';
       authStatus.classList.remove('is-admin');
-      authStatus.textContent = 'Signed in: ' + user.email;
+      authStatus.textContent = 'Signed in';
     } else {
       isAdmin = false;
       authSigninBtn.style.display = '';
@@ -112,14 +116,26 @@ if(CONFIGURED){
     if(!user){
       if(dmUnsub){ dmUnsub(); dmUnsub = null; }
       currentDmConvo = null;
-      myDisplayName = '';
-      dmNameInput.value = '';
+      myUsername = null;
+      dmUsernameInput.value = '';
+      dmUsernameError.style.display = 'none';
       dmThreadLabel.textContent = 'no conversation open';
       dmLog.innerHTML = '<div class="empty-state">open a DM above to see messages</div>';
       dmMsgInput.disabled = true;
       dmSendBtn.disabled = true;
-      dmTargetEmail.value = '';
+      dmTargetUsername.value = '';
     }
+  }
+
+  function showUsernamePicker(){
+    dmUsernamePicker.style.display = '';
+    dmUsernameLocked.style.display = 'none';
+  }
+  function showUsernameLocked(username){
+    myUsername = username;
+    dmMyUsername.textContent = username;
+    dmUsernamePicker.style.display = 'none';
+    dmUsernameLocked.style.display = '';
   }
 
   if(auth){
@@ -132,15 +148,18 @@ if(CONFIGURED){
       updateAuthUI(user);
       if(user && db){
         db.collection('users').doc(user.uid).get().then(doc => {
-          const existing = doc.exists ? doc.data().displayName : null;
-          myDisplayName = existing || user.displayName || user.email.split('@')[0];
-          dmNameInput.value = myDisplayName;
+          const existing = doc.exists ? doc.data().username : null;
+          if(existing){
+            showUsernameLocked(existing);
+          } else {
+            showUsernamePicker();
+          }
+          // keep the account's email privately for admin checks; never displayed
           return db.collection('users').doc(user.uid).set({
-            email: user.email,
-            displayName: myDisplayName,
+            hasAccount: true,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
           }, { merge: true });
-        }).catch(e => console.error('profile load/upsert failed', e));
+        }).catch(e => console.error('profile load failed', e));
       }
     });
   }
@@ -331,23 +350,50 @@ if(CONFIGURED){
     msgInput.focus();
   }
 
-  // ---------- DIRECT MESSAGES (1-on-1, signed-in users only) ----------
-  function convoIdFor(uidA, uidB){
-    return [uidA, uidB].sort().join('_');
+  // ---------- DIRECT MESSAGES (1-on-1, permanent username required) ----------
+
+  const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
+
+  async function claimUsername(){
+    if(!auth || !auth.currentUser || !db) return;
+    const name = dmUsernameInput.value.trim();
+    dmUsernameError.style.display = 'none';
+    if(!USERNAME_RE.test(name)){
+      dmUsernameError.textContent = '3-20 characters, letters/numbers/underscore only.';
+      dmUsernameError.style.display = '';
+      return;
+    }
+    const lower = name.toLowerCase();
+    dmUsernameClaimBtn.disabled = true;
+    try{
+      await db.runTransaction(async tx => {
+        const unameRef = db.collection('usernames').doc(lower);
+        const unameDoc = await tx.get(unameRef);
+        if(unameDoc.exists){
+          throw new Error('taken');
+        }
+        tx.set(unameRef, { uid: auth.currentUser.uid });
+        tx.set(db.collection('users').doc(auth.currentUser.uid), {
+          username: name,
+          usernameLower: lower,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+      });
+      showUsernameLocked(name);
+    }catch(e){
+      if(e && e.message === 'taken'){
+        dmUsernameError.textContent = 'That username is already taken — try another.';
+      } else {
+        console.error('claim username failed', e);
+        dmUsernameError.textContent = 'Something went wrong — try again.';
+      }
+      dmUsernameError.style.display = '';
+    }
+    dmUsernameClaimBtn.disabled = false;
   }
 
-  async function saveDisplayName(){
-    if(!auth || !auth.currentUser || !db) return;
-    const name = dmNameInput.value.trim().slice(0,24);
-    if(!name) return;
-    dmNameSaveBtn.disabled = true;
-    try{
-      await db.collection('users').doc(auth.currentUser.uid).set({
-        displayName: name
-      }, { merge: true });
-      myDisplayName = name;
-    }catch(e){ console.error('save display name failed', e); }
-    dmNameSaveBtn.disabled = false;
+  function convoIdFor(uidA, uidB){
+    return [uidA, uidB].sort().join('_');
   }
 
   function renderDm(messages){
@@ -359,7 +405,7 @@ if(CONFIGURED){
     const myUid = auth.currentUser ? auth.currentUser.uid : null;
     dmLog.innerHTML = messages.map(m=>{
       const mine = m.senderId === myUid;
-      const who = mine ? 'You' : (m.senderName || m.senderEmail);
+      const who = mine ? 'You' : (m.senderName || 'them');
       return `
         <div class="msg ${mine ? 'mine' : ''}">
           <span class="when">${timeAgo(m.t)}</span>
@@ -371,10 +417,10 @@ if(CONFIGURED){
     if(wasNearBottom) dmLog.scrollTop = dmLog.scrollHeight;
   }
 
-  function subscribeToDm(convoId, otherLabel){
+  function subscribeToDm(convoId, otherUsername){
     if(dmUnsub){ dmUnsub(); dmUnsub = null; }
     currentDmConvo = convoId;
-    dmThreadLabel.textContent = 'Chatting with: ' + otherLabel;
+    dmThreadLabel.textContent = 'Chatting with: ' + otherUsername;
     dmMsgInput.disabled = false;
     dmSendBtn.disabled = false;
     dmLog.innerHTML = '<div class="empty-state">loading…</div>';
@@ -387,37 +433,38 @@ if(CONFIGURED){
   }
 
   async function openDm(){
-    if(!auth || !auth.currentUser || !db) return;
-    const email = dmTargetEmail.value.trim().toLowerCase();
-    if(!email) return;
-    if(email === auth.currentUser.email.toLowerCase()){
-      dmThreadLabel.textContent = "That's your own email — enter someone else's.";
+    if(!auth || !auth.currentUser || !db || !myUsername) return;
+    const target = dmTargetUsername.value.trim();
+    if(!target) return;
+    const lower = target.toLowerCase();
+    if(lower === myUsername.toLowerCase()){
+      dmThreadLabel.textContent = "That's your own username — enter someone else's.";
       return;
     }
     dmOpenBtn.disabled = true;
     try{
-      const snap = await db.collection('users').where('email', '==', email).limit(1).get();
-      if(snap.empty){
-        dmThreadLabel.textContent = 'No signed-in user found with that email yet.';
+      const unameDoc = await db.collection('usernames').doc(lower).get();
+      if(!unameDoc.exists){
+        dmThreadLabel.textContent = 'No user found with that username.';
       } else {
-        const otherData = snap.docs[0].data();
-        const otherUid = snap.docs[0].id;
-        subscribeToDm(convoIdFor(auth.currentUser.uid, otherUid), otherData.displayName || email);
+        const otherUid = unameDoc.data().uid;
+        const otherProfile = await db.collection('users').doc(otherUid).get();
+        const otherUsername = (otherProfile.exists && otherProfile.data().username) || target;
+        subscribeToDm(convoIdFor(auth.currentUser.uid, otherUid), otherUsername);
       }
     }catch(e){ console.error('open dm failed', e); }
     dmOpenBtn.disabled = false;
   }
 
   async function sendDm(){
-    if(!currentDmConvo || !auth || !auth.currentUser || !db) return;
+    if(!currentDmConvo || !auth || !auth.currentUser || !db || !myUsername) return;
     const text = dmMsgInput.value.trim();
     if(!text) return;
     dmSendBtn.disabled = true;
     try{
       await db.collection('dms').doc(currentDmConvo).collection('messages').add({
         senderId: auth.currentUser.uid,
-        senderEmail: auth.currentUser.email,
-        senderName: myDisplayName || auth.currentUser.email,
+        senderName: myUsername,
         text,
         t: firebase.firestore.FieldValue.serverTimestamp()
       });
@@ -427,10 +474,10 @@ if(CONFIGURED){
     dmMsgInput.focus();
   }
 
-  dmNameSaveBtn.addEventListener('click', saveDisplayName);
-  dmNameInput.addEventListener('keydown', e=>{ if(e.key === 'Enter') saveDisplayName(); });
+  dmUsernameClaimBtn.addEventListener('click', claimUsername);
+  dmUsernameInput.addEventListener('keydown', e=>{ if(e.key === 'Enter') claimUsername(); });
   dmOpenBtn.addEventListener('click', openDm);
-  dmTargetEmail.addEventListener('keydown', e=>{ if(e.key === 'Enter') openDm(); });
+  dmTargetUsername.addEventListener('keydown', e=>{ if(e.key === 'Enter') openDm(); });
   dmSendBtn.addEventListener('click', sendDm);
   dmMsgInput.addEventListener('keydown', e=>{ if(e.key === 'Enter') sendDm(); });
 
