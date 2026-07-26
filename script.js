@@ -71,6 +71,7 @@ if(CONFIGURED){
   const dmUsernameLocked = document.getElementById('dm-username-locked');
   const dmMyUsername = document.getElementById('dm-my-username');
   const dmTargetUsername = document.getElementById('dm-target-username');
+  const dmSearchResults = document.getElementById('dm-search-results');
   const dmOpenBtn = document.getElementById('dm-open-btn');
   const dmThreadLabel = document.getElementById('dm-thread-label');
   const dmLog = document.getElementById('dm-log');
@@ -384,7 +385,7 @@ if(CONFIGURED){
         if(unameDoc.exists){
           throw new Error('taken');
         }
-        tx.set(unameRef, { uid: auth.currentUser.uid });
+        tx.set(unameRef, { uid: auth.currentUser.uid, username: name });
         tx.set(db.collection('users').doc(auth.currentUser.uid), {
           username: name,
           usernameLower: lower,
@@ -444,6 +445,45 @@ if(CONFIGURED){
       }, err => console.error('dm listener error', err));
   }
 
+  let dmSearchDebounce = null;
+
+  function hideDmSearchResults(){
+    dmSearchResults.classList.remove('show');
+    dmSearchResults.innerHTML = '';
+  }
+
+  function pickDmResult(uid, username){
+    dmTargetUsername.value = username;
+    hideDmSearchResults();
+    subscribeToDm(convoIdFor(auth.currentUser.uid, uid), username);
+  }
+
+  async function searchUsernames(){
+    const raw = dmTargetUsername.value.trim();
+    if(!raw || !auth || !auth.currentUser || !db){ hideDmSearchResults(); return; }
+    const prefix = raw.toLowerCase();
+    try{
+      const snap = await db.collection('usernames')
+        .orderBy(firebase.firestore.FieldPath.documentId())
+        .startAt(prefix).endAt(prefix + '\uf8ff')
+        .limit(8).get();
+      const items = snap.docs
+        .filter(d => d.id !== myUsername.toLowerCase())
+        .map(d => ({ uid: d.data().uid, username: d.data().username || d.id }));
+      if(!items.length){
+        dmSearchResults.innerHTML = '<div class="dm-search-empty">no matching usernames</div>';
+      } else {
+        dmSearchResults.innerHTML = items.map(it =>
+          `<div class="dm-search-item" data-uid="${it.uid}" data-username="${escapeHtml(it.username)}">${escapeHtml(it.username)}</div>`
+        ).join('');
+        dmSearchResults.querySelectorAll('.dm-search-item').forEach(el=>{
+          el.addEventListener('click', ()=> pickDmResult(el.dataset.uid, el.dataset.username));
+        });
+      }
+      dmSearchResults.classList.add('show');
+    }catch(e){ console.error('username search failed', e); hideDmSearchResults(); }
+  }
+
   async function openDm(){
     if(!auth || !auth.currentUser || !db || !myUsername) return;
     const target = dmTargetUsername.value.trim();
@@ -459,10 +499,9 @@ if(CONFIGURED){
       if(!unameDoc.exists){
         dmThreadLabel.textContent = 'No user found with that username.';
       } else {
-        const otherUid = unameDoc.data().uid;
-        const otherProfile = await db.collection('users').doc(otherUid).get();
-        const otherUsername = (otherProfile.exists && otherProfile.data().username) || target;
-        subscribeToDm(convoIdFor(auth.currentUser.uid, otherUid), otherUsername);
+        const data = unameDoc.data();
+        hideDmSearchResults();
+        subscribeToDm(convoIdFor(auth.currentUser.uid, data.uid), data.username || target);
       }
     }catch(e){ console.error('open dm failed', e); }
     dmOpenBtn.disabled = false;
@@ -490,6 +529,16 @@ if(CONFIGURED){
   dmUsernameInput.addEventListener('keydown', e=>{ if(e.key === 'Enter') claimUsername(); });
   dmOpenBtn.addEventListener('click', openDm);
   dmTargetUsername.addEventListener('keydown', e=>{ if(e.key === 'Enter') openDm(); });
+  dmTargetUsername.addEventListener('input', ()=>{
+    if(dmSearchDebounce) clearTimeout(dmSearchDebounce);
+    dmSearchDebounce = setTimeout(searchUsernames, 250);
+  });
+  dmTargetUsername.addEventListener('focus', ()=>{
+    if(dmTargetUsername.value.trim()) searchUsernames();
+  });
+  document.addEventListener('click', e=>{
+    if(!dmSearchResults.contains(e.target) && e.target !== dmTargetUsername) hideDmSearchResults();
+  });
   dmSendBtn.addEventListener('click', sendDm);
   dmMsgInput.addEventListener('keydown', e=>{ if(e.key === 'Enter') sendDm(); });
 
