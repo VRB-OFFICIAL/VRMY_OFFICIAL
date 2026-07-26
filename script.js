@@ -359,6 +359,7 @@ if(CONFIGURED){
   // ---------- DIRECT MESSAGES (1-on-1, permanent username required) ----------
 
   const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
+  const RESERVED_WORDS_RE = /(dev|owner|admin|developer|helper)/i;
 
   async function claimUsername(){
     if(!auth || !auth.currentUser || !db) return;
@@ -366,6 +367,11 @@ if(CONFIGURED){
     dmUsernameError.style.display = 'none';
     if(!USERNAME_RE.test(name)){
       dmUsernameError.textContent = '3-20 characters, letters/numbers/underscore only.';
+      dmUsernameError.style.display = '';
+      return;
+    }
+    if(RESERVED_WORDS_RE.test(name) && !ADMIN_EMAILS.includes(auth.currentUser.email)){
+      dmUsernameError.textContent = 'That username contains a reserved word and can\'t be used.';
       dmUsernameError.style.display = '';
       return;
     }
