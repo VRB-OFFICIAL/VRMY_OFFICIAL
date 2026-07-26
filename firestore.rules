@@ -68,6 +68,17 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // parent DM doc: holds participants + a preview, so each user can list
+    // their own conversation history without searching every time.
+    match /dms/{convoId} {
+      allow read: if request.auth != null && request.auth.uid in resource.data.participants;
+      allow create, update: if request.auth != null
+                            && convoId.split('_').size() == 2
+                            && convoId.split('_').hasAny([request.auth.uid])
+                            && request.resource.data.participants == convoId.split('_');
+      allow delete: if false;
+    }
+
     // private 1-on-1 DMs. Convo id is "<uidA>_<uidB>" (sorted), so only the
     // two participants' uids ever appear in it — anyone else is rejected.
     match /dms/{convoId}/messages/{msgId} {

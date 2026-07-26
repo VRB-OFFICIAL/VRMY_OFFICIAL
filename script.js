@@ -70,6 +70,7 @@ if(CONFIGURED){
   const dmUsernameError = document.getElementById('dm-username-error');
   const dmUsernameLocked = document.getElementById('dm-username-locked');
   const dmMyUsername = document.getElementById('dm-my-username');
+  const dmConversationsList = document.getElementById('dm-conversations');
   const dmTargetUsername = document.getElementById('dm-target-username');
   const dmSearchResults = document.getElementById('dm-search-results');
   const dmOpenBtn = document.getElementById('dm-open-btn');
@@ -80,6 +81,8 @@ if(CONFIGURED){
 
   let currentDmConvo = null;
   let dmUnsub = null;
+  let dmConvoListUnsub = null;
+  let latestConvoDocs = [];
   let myUsername = null;
 
   let latestKills = [];
@@ -117,6 +120,8 @@ if(CONFIGURED){
     dmSignedIn.style.display = user ? '' : 'none';
     if(!user){
       if(dmUnsub){ dmUnsub(); dmUnsub = null; }
+      if(dmConvoListUnsub){ dmConvoListUnsub(); dmConvoListUnsub = null; }
+      latestConvoDocs = [];
       currentDmConvo = null;
       myUsername = null;
       dmUsernameInput.value = '';
@@ -126,6 +131,7 @@ if(CONFIGURED){
       dmMsgInput.disabled = true;
       dmSendBtn.disabled = true;
       dmTargetUsername.value = '';
+      dmConversationsList.innerHTML = '<div class="empty-state" style="padding:16px;">no conversations yet</div>';
     }
     updateChatAccess();
   }
@@ -171,6 +177,7 @@ if(CONFIGURED){
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
           }, { merge: true });
         }).catch(e => console.error('profile load failed', e));
+        subscribeToConversationList();
       }
     });
   }
@@ -430,6 +437,43 @@ if(CONFIGURED){
     if(wasNearBottom) dmLog.scrollTop = dmLog.scrollHeight;
   }
 
+  function subscribeToConversationList(){
+    if(dmConvoListUnsub){ dmConvoListUnsub(); dmConvoListUnsub = null; }
+    if(!auth || !auth.currentUser || !db) return;
+    dmConvoListUnsub = db.collection('dms')
+      .where('participants', 'array-contains', auth.currentUser.uid)
+      .orderBy('updatedAt', 'desc')
+      .limit(50)
+      .onSnapshot(snap => {
+        latestConvoDocs = snap.docs;
+        renderConversationList();
+      }, err => console.error('conversation list error', err));
+  }
+
+  function renderConversationList(){
+    const myUid = auth.currentUser ? auth.currentUser.uid : null;
+    if(!latestConvoDocs.length){
+      dmConversationsList.innerHTML = '<div class="empty-state" style="padding:16px;">no conversations yet</div>';
+      return;
+    }
+    dmConversationsList.innerHTML = latestConvoDocs.map(d=>{
+      const data = d.data();
+      const otherUid = (data.participants || []).find(id => id !== myUid);
+      const otherName = (data.participantNames && data.participantNames[otherUid]) || 'unknown';
+      const preview = data.lastMessage ? escapeHtml(data.lastMessage) : '';
+      const activeClass = currentDmConvo === d.id ? 'active' : '';
+      return `
+        <div class="dm-conv-item ${activeClass}" data-id="${d.id}" data-name="${escapeHtml(otherName)}">
+          <div class="dm-conv-name">${escapeHtml(otherName)}</div>
+          <div class="dm-conv-preview">${preview}</div>
+        </div>
+      `;
+    }).join('');
+    dmConversationsList.querySelectorAll('.dm-conv-item').forEach(el=>{
+      el.addEventListener('click', ()=> subscribeToDm(el.dataset.id, el.dataset.name));
+    });
+  }
+
   function subscribeToDm(convoId, otherUsername){
     if(dmUnsub){ dmUnsub(); dmUnsub = null; }
     currentDmConvo = convoId;
@@ -443,6 +487,19 @@ if(CONFIGURED){
         const messages = snap.docs.map(d => d.data());
         renderDm(messages);
       }, err => console.error('dm listener error', err));
+
+    // register/refresh this conversation so it shows up in both users' history
+    const otherUid = convoId.split('_').find(id => id !== auth.currentUser.uid);
+    db.collection('dms').doc(convoId).set({
+      participants: convoId.split('_'),
+      participantNames: {
+        [auth.currentUser.uid]: myUsername,
+        [otherUid]: otherUsername
+      },
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true }).catch(e => console.error('convo registration failed', e));
+
+    renderConversationList();
   }
 
   let dmSearchDebounce = null;
@@ -468,7 +525,7 @@ if(CONFIGURED){
         .startAt(prefix).endAt(prefix + '\uf8ff')
         .limit(8).get();
       const items = snap.docs
-        .filter(d => d.id !== myUsername.toLowerCase())
+        .filter(d => d.id !== (myUsername || '').toLowerCase())
         .map(d => ({ uid: d.data().uid, username: d.data().username || d.id }));
       if(!items.length){
         dmSearchResults.innerHTML = '<div class="dm-search-empty">no matching usernames</div>';
@@ -519,6 +576,10 @@ if(CONFIGURED){
         text,
         t: firebase.firestore.FieldValue.serverTimestamp()
       });
+      await db.collection('dms').doc(currentDmConvo).set({
+        lastMessage: text.slice(0, 120),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
       dmMsgInput.value = '';
     }catch(e){ console.error('send dm failed', e); }
     dmSendBtn.disabled = false;
