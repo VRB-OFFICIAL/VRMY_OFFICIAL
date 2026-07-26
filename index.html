@@ -162,21 +162,32 @@
         <div class="panel-label" style="margin-bottom:0;">your username: <span id="dm-my-username" style="color: var(--amber);"></span></div>
       </div>
 
-      <div class="panel-label">// conversations</div>
-      <div id="dm-conversations" class="dm-conversations">
-        <div class="empty-state" style="padding:16px;">no conversations yet</div>
-      </div>
+      <div class="dm-layout">
+        <div class="dm-sidebar">
+          <div class="dm-sidebar-header">
+            <span>Conversations</span>
+            <button id="dm-new-btn" class="ghost-btn">+ New</button>
+          </div>
+          <div id="dm-conversations" class="dm-conversations">
+            <div class="empty-state" style="padding:16px;">no conversations yet</div>
+          </div>
+        </div>
 
-      <div class="chat-input-row" style="margin-bottom:0; position:relative;">
-        <input type="text" id="dm-target-username" placeholder="search a username" autocomplete="off" style="flex:1;">
-        <button id="dm-open-btn">Open DM</button>
-      </div>
-      <div id="dm-search-results" class="dm-search-results"></div>
-      <div id="dm-thread-label" class="panel-label" style="margin-top:16px; margin-bottom:10px;">no conversation open</div>
-      <div id="dm-log" class="chat-log"><div class="empty-state">open a DM above to see messages</div></div>
-      <div class="chat-input-row">
-        <input type="text" id="dm-msg-input" placeholder="type a private message..." maxlength="500" disabled style="flex:1;">
-        <button id="dm-send-btn" disabled>Send</button>
+        <div class="dm-main">
+          <div id="dm-new-search" style="display:none; margin-bottom:14px;">
+            <div class="chat-input-row" style="position:relative;">
+              <input type="text" id="dm-target-username" placeholder="search a username" autocomplete="off" style="flex:1;">
+              <button id="dm-open-btn">Open DM</button>
+            </div>
+            <div id="dm-search-results" class="dm-search-results"></div>
+          </div>
+          <div id="dm-thread-label" class="panel-label" style="margin-bottom:10px;">no conversation open</div>
+          <div id="dm-log" class="chat-log"><div class="empty-state">open a DM above to see messages</div></div>
+          <div class="chat-input-row">
+            <input type="text" id="dm-msg-input" placeholder="type a private message..." maxlength="500" disabled style="flex:1;">
+            <button id="dm-send-btn" disabled>Send</button>
+          </div>
+        </div>
       </div>
     </div>
   </section>

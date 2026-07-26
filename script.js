@@ -71,6 +71,8 @@ if(CONFIGURED){
   const dmUsernameLocked = document.getElementById('dm-username-locked');
   const dmMyUsername = document.getElementById('dm-my-username');
   const dmConversationsList = document.getElementById('dm-conversations');
+  const dmNewBtn = document.getElementById('dm-new-btn');
+  const dmNewSearch = document.getElementById('dm-new-search');
   const dmTargetUsername = document.getElementById('dm-target-username');
   const dmSearchResults = document.getElementById('dm-search-results');
   const dmOpenBtn = document.getElementById('dm-open-btn');
@@ -462,10 +464,14 @@ if(CONFIGURED){
       const otherName = (data.participantNames && data.participantNames[otherUid]) || 'unknown';
       const preview = data.lastMessage ? escapeHtml(data.lastMessage) : '';
       const activeClass = currentDmConvo === d.id ? 'active' : '';
+      const initial = otherName.charAt(0).toUpperCase();
       return `
         <div class="dm-conv-item ${activeClass}" data-id="${d.id}" data-name="${escapeHtml(otherName)}">
-          <div class="dm-conv-name">${escapeHtml(otherName)}</div>
-          <div class="dm-conv-preview">${preview}</div>
+          <div class="dm-conv-avatar">${escapeHtml(initial)}</div>
+          <div class="dm-conv-text">
+            <div class="dm-conv-name">${escapeHtml(otherName)}</div>
+            <div class="dm-conv-preview">${preview}</div>
+          </div>
         </div>
       `;
     }).join('');
@@ -481,6 +487,9 @@ if(CONFIGURED){
     dmMsgInput.disabled = false;
     dmSendBtn.disabled = false;
     dmLog.innerHTML = '<div class="empty-state">loading…</div>';
+    dmNewSearch.style.display = 'none';
+    dmTargetUsername.value = '';
+    hideDmSearchResults();
     dmUnsub = db.collection('dms').doc(convoId).collection('messages')
       .orderBy('t', 'asc').limit(200)
       .onSnapshot(snap => {
@@ -588,6 +597,12 @@ if(CONFIGURED){
 
   dmUsernameClaimBtn.addEventListener('click', claimUsername);
   dmUsernameInput.addEventListener('keydown', e=>{ if(e.key === 'Enter') claimUsername(); });
+  dmNewBtn.addEventListener('click', ()=>{
+    const showing = dmNewSearch.style.display !== 'none';
+    dmNewSearch.style.display = showing ? 'none' : '';
+    if(!showing) dmTargetUsername.focus();
+    else hideDmSearchResults();
+  });
   dmOpenBtn.addEventListener('click', openDm);
   dmTargetUsername.addEventListener('keydown', e=>{ if(e.key === 'Enter') openDm(); });
   dmTargetUsername.addEventListener('input', ()=>{
