@@ -22,7 +22,8 @@ service cloud.firestore {
                        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.username
                     && request.resource.data.text is string
                     && request.resource.data.text.size() > 0
-                    && request.resource.data.text.size() <= 500;
+                    && request.resource.data.text.size() <= 500
+                    && request.resource.data.isAdmin == isAdmin();
       allow update, delete: if isAdmin();
     }
 
@@ -91,7 +92,8 @@ service cloud.firestore {
                     && request.resource.data.senderId == request.auth.uid
                     && request.resource.data.text is string
                     && request.resource.data.text.size() > 0
-                    && request.resource.data.text.size() <= 500;
+                    && request.resource.data.text.size() <= 500
+                    && request.resource.data.isAdmin == isAdmin();
       allow update, delete: if false;
     }
   }

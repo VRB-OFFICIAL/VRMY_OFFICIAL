@@ -214,6 +214,9 @@ if(CONFIGURED){
     const d = ts.toDate ? ts.toDate() : new Date(ts);
     return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
   }
+  function adminBadge(){
+    return '<svg class="icon admin-crown" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M5 19h14L17 9l-5 4-2-7-2 7-5-4 2 10z" fill="currentColor" stroke="none"/></svg>';
+  }
 
   function renderChat(messages){
     if(!messages.length){
@@ -224,7 +227,7 @@ if(CONFIGURED){
     chatLog.innerHTML = messages.map(m => `
       <div class="msg">
         <span class="when">${timeAgo(m.t)}</span>
-        <span class="who">${escapeHtml(m.name)}</span>
+        <span class="who${m.isAdmin ? ' admin' : ''}">${m.isAdmin ? adminBadge() : ''}${escapeHtml(m.name)}</span>
         <span class="body">${escapeHtml(m.text)}</span>
       </div>
     `).join('');
@@ -358,7 +361,7 @@ if(CONFIGURED){
     sendBtn.disabled = true;
     try{
       await db.collection('messages').add({
-        name: myUsername, text, t: firebase.firestore.FieldValue.serverTimestamp()
+        name: myUsername, text, isAdmin, t: firebase.firestore.FieldValue.serverTimestamp()
       });
       msgInput.value = '';
     }catch(e){ console.error('send failed', e); }
@@ -431,7 +434,7 @@ if(CONFIGURED){
       return `
         <div class="msg ${mine ? 'mine' : ''}">
           <span class="when">${timeAgo(m.t)}</span>
-          <span class="who">${escapeHtml(who)}</span>
+          <span class="who${m.isAdmin ? ' admin' : ''}">${m.isAdmin ? adminBadge() : ''}${escapeHtml(who)}</span>
           <span class="body">${escapeHtml(m.text)}</span>
         </div>
       `;
@@ -582,6 +585,7 @@ if(CONFIGURED){
       await db.collection('dms').doc(currentDmConvo).collection('messages').add({
         senderId: auth.currentUser.uid,
         senderName: myUsername,
+        isAdmin,
         text,
         t: firebase.firestore.FieldValue.serverTimestamp()
       });
