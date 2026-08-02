@@ -145,6 +145,12 @@
   tr:hover td{ background: var(--panel-2); }
   .rank{ color: var(--amber); font-weight: 700; width: 46px; }
   .rank.r1{ color: #FFD54A; } .rank.r2{ color: #D8D8D8; } .rank.r3{ color: #CD8C4E; }
+  .skill-name{ font-weight: 600; }
+  .rank-cell-wrap{ display: inline-flex; align-items: center; gap: 2px; }
+  .rank-hash{ color: var(--amber); font-weight: 700; font-size: 13px; }
+  .rank-cell-wrap.r1 .rank-hash, .rank-edit.r1{ color: #FFD54A; }
+  .rank-cell-wrap.r2 .rank-hash, .rank-edit.r2{ color: #D8D8D8; }
+  .rank-cell-wrap.r3 .rank-hash, .rank-edit.r3{ color: #CD8C4E; }
   .rank-edit{
     width: 56px; background: #0F110B; border: 1px solid var(--line); color: var(--amber);
     font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 13px; padding: 6px 4px; text-align:center;
