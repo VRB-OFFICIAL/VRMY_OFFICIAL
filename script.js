@@ -71,6 +71,8 @@ if(CONFIGURED){
   const dmUsernameError = document.getElementById('dm-username-error');
   const dmUsernameLocked = document.getElementById('dm-username-locked');
   const dmMyUsername = document.getElementById('dm-my-username');
+  const dmRobloxInput = document.getElementById('dm-roblox-input');
+  const dmRobloxSaveBtn = document.getElementById('dm-roblox-save-btn');
   const dmConversationsList = document.getElementById('dm-conversations');
   const dmNewBtn = document.getElementById('dm-new-btn');
   const dmNewSearch = document.getElementById('dm-new-search');
@@ -87,6 +89,7 @@ if(CONFIGURED){
   let dmConvoListUnsub = null;
   let latestConvoDocs = [];
   let myUsername = null;
+  let myRoblox = null;
 
   let latestKills = [];
   let latestSkill = [];
@@ -127,7 +130,9 @@ if(CONFIGURED){
       latestConvoDocs = [];
       currentDmConvo = null;
       myUsername = null;
+      myRoblox = null;
       dmUsernameInput.value = '';
+      dmRobloxInput.value = '';
       dmUsernameError.style.display = 'none';
       dmThreadLabel.textContent = 'no conversation open';
       dmLog.innerHTML = '<div class="empty-state">open a DM above to see messages</div>';
@@ -169,6 +174,8 @@ if(CONFIGURED){
       if(user && db){
         db.collection('users').doc(user.uid).get().then(doc => {
           const existing = doc.exists ? doc.data().username : null;
+          myRoblox = doc.exists ? (doc.data().roblox || null) : null;
+          dmRobloxInput.value = myRoblox || '';
           if(existing){
             showUsernameLocked(existing);
           } else {
@@ -229,6 +236,7 @@ if(CONFIGURED){
       <div class="msg">
         <span class="when">${timeAgo(m.t)}</span>
         <span class="who${m.isAdmin ? ' admin' : ''}">${m.isAdmin ? adminBadge() : ''}${escapeHtml(m.name)}</span>
+        ${m.roblox ? `<span class="roblox-tag" style="display:inline; margin-left:6px;">@${escapeHtml(m.roblox)}</span>` : ''}
         <span class="body">${escapeHtml(m.text)}</span>
       </div>
     `).join('');
@@ -368,9 +376,9 @@ if(CONFIGURED){
     if(!text) return;
     sendBtn.disabled = true;
     try{
-      await db.collection('messages').add({
-        name: myUsername, text, isAdmin, t: firebase.firestore.FieldValue.serverTimestamp()
-      });
+      const entry = { name: myUsername, text, isAdmin, t: firebase.firestore.FieldValue.serverTimestamp() };
+      if(myRoblox) entry.roblox = myRoblox;
+      await db.collection('messages').add(entry);
       msgInput.value = '';
     }catch(e){ console.error('send failed', e); }
     sendBtn.disabled = false;
@@ -425,6 +433,29 @@ if(CONFIGURED){
     dmUsernameClaimBtn.disabled = false;
   }
 
+  const ROBLOX_RE = /^[a-zA-Z0-9_]{0,24}$/;
+
+  async function saveRoblox(){
+    if(!auth || !auth.currentUser || !db) return;
+    const raw = dmRobloxInput.value.trim().replace(/^@/, '');
+    if(!ROBLOX_RE.test(raw)){
+      dmRobloxInput.title = 'Letters, numbers, underscore only (max 24 chars).';
+      dmRobloxInput.style.borderColor = 'var(--red)';
+      return;
+    }
+    dmRobloxInput.style.borderColor = '';
+    dmRobloxSaveBtn.disabled = true;
+    try{
+      await db.collection('users').doc(auth.currentUser.uid).set({
+        roblox: raw || firebase.firestore.FieldValue.delete(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+      myRoblox = raw || null;
+      dmRobloxInput.value = raw;
+    }catch(e){ console.error('save roblox failed', e); }
+    dmRobloxSaveBtn.disabled = false;
+  }
+
   function convoIdFor(uidA, uidB){
     return [uidA, uidB].sort().join('_');
   }
@@ -443,6 +474,7 @@ if(CONFIGURED){
         <div class="msg ${mine ? 'mine' : ''}">
           <span class="when">${timeAgo(m.t)}</span>
           <span class="who${m.isAdmin ? ' admin' : ''}">${m.isAdmin ? adminBadge() : ''}${escapeHtml(who)}</span>
+          ${m.senderRoblox ? `<span class="roblox-tag" style="display:inline; margin-left:6px;">@${escapeHtml(m.senderRoblox)}</span>` : ''}
           <span class="body">${escapeHtml(m.text)}</span>
         </div>
       `;
@@ -590,13 +622,15 @@ if(CONFIGURED){
     if(!text) return;
     dmSendBtn.disabled = true;
     try{
-      await db.collection('dms').doc(currentDmConvo).collection('messages').add({
+      const entry = {
         senderId: auth.currentUser.uid,
         senderName: myUsername,
         isAdmin,
         text,
         t: firebase.firestore.FieldValue.serverTimestamp()
-      });
+      };
+      if(myRoblox) entry.senderRoblox = myRoblox;
+      await db.collection('dms').doc(currentDmConvo).collection('messages').add(entry);
       await db.collection('dms').doc(currentDmConvo).set({
         lastMessage: text.slice(0, 120),
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -609,6 +643,8 @@ if(CONFIGURED){
 
   dmUsernameClaimBtn.addEventListener('click', claimUsername);
   dmUsernameInput.addEventListener('keydown', e=>{ if(e.key === 'Enter') claimUsername(); });
+  dmRobloxSaveBtn.addEventListener('click', saveRoblox);
+  dmRobloxInput.addEventListener('keydown', e=>{ if(e.key === 'Enter') saveRoblox(); });
   dmNewBtn.addEventListener('click', ()=>{
     const showing = dmNewSearch.style.display !== 'none';
     dmNewSearch.style.display = showing ? 'none' : '';
