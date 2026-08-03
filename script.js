@@ -50,6 +50,7 @@ if(CONFIGURED){
   const skillViewonly = document.getElementById('skill-viewonly');
 
   const killsName = document.getElementById('kills-name');
+  const killsRoblox = document.getElementById('kills-roblox');
   const killsCount = document.getElementById('kills-count');
   const killsAddBtn = document.getElementById('kills-add-btn');
   const killsBody = document.getElementById('kills-body');
@@ -246,7 +247,10 @@ if(CONFIGURED){
       return `
         <tr>
           <td class="rank ${rankClass}">#${i+1}</td>
-          <td>${escapeHtml(e.name)}</td>
+          <td>
+            <span class="lb-name">${escapeHtml(e.name)}</span>
+            ${e.roblox ? `<span class="roblox-tag">@${escapeHtml(e.roblox)}</span>` : ''}
+          </td>
           <td class="lb-score-cell">${e.kills}</td>
           <td>${delCell}</td>
         </tr>
@@ -260,12 +264,15 @@ if(CONFIGURED){
   async function addKillsEntry(){
     if(!isAdmin) return;
     const name = killsName.value.trim().slice(0,24);
+    const roblox = killsRoblox.value.trim().replace(/^@/,'').slice(0,24);
     const kills = parseInt(killsCount.value, 10);
     if(!name || isNaN(kills) || !db) return;
     killsAddBtn.disabled = true;
     try{
-      await db.collection('leaderboard_kills').add({ name, kills });
-      killsName.value = ''; killsCount.value = '';
+      const entry = { name, kills };
+      if(roblox) entry.roblox = roblox;
+      await db.collection('leaderboard_kills').add(entry);
+      killsName.value = ''; killsRoblox.value = ''; killsCount.value = '';
     }catch(e){ console.error('add kills failed', e); }
     killsAddBtn.disabled = false;
     killsName.focus();
@@ -628,6 +635,7 @@ if(CONFIGURED){
   killsAddBtn.addEventListener('click', addKillsEntry);
   killsCount.addEventListener('keydown', e=>{ if(e.key === 'Enter') addKillsEntry(); });
   killsName.addEventListener('keydown', e=>{ if(e.key === 'Enter') addKillsEntry(); });
+  killsRoblox.addEventListener('keydown', e=>{ if(e.key === 'Enter') addKillsEntry(); });
   skillAddBtn.addEventListener('click', addSkillEntry);
   skillRank.addEventListener('keydown', e=>{ if(e.key === 'Enter') addSkillEntry(); });
   skillName.addEventListener('keydown', e=>{ if(e.key === 'Enter') addSkillEntry(); });

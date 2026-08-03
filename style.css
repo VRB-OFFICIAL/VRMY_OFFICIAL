@@ -159,6 +159,11 @@
   .del-btn{ background: transparent; border: none; color: var(--text-dim); font-size: 15px; cursor: pointer; padding: 2px 6px; }
   .del-btn:hover{ color: var(--red); }
   .lb-score-cell{ font-weight: 700; text-align:right; padding-right: 14px; }
+  .lb-name{ display:block; }
+  .roblox-tag{
+    display:block; font-size: 11px; color: var(--text-dim);
+    letter-spacing: 0.5px; margin-top: 1px;
+  }
 
   .tier-badge{
     display:inline-block; font-family:'Rajdhani', sans-serif; font-weight:700; font-size: 11.5px;
