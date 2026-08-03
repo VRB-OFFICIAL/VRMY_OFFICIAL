@@ -13,6 +13,30 @@ service cloud.firestore {
       return name.lower().matches('.*(dev|owner|admin|developer|helper).*');
     }
 
+    // the caller's own (unverified, self-reported) Roblox username, or null
+    // if they haven't set one. Used so chat/DM messages can only carry the
+    // Roblox tag that's actually on the sender's own profile — no spoofing.
+    function callerRoblox() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('roblox', null);
+    }
+
+    // has this Roblox name been claimed (reserved exclusively) by an admin
+    // via the robloxNames registry below?
+    function robloxClaimed(name) {
+      return exists(/databases/$(database)/documents/robloxNames/$(name.lower()));
+    }
+
+    // is the caller the one who claimed this Roblox name?
+    function ownsRobloxClaim(name) {
+      return get(/databases/$(database)/documents/robloxNames/$(name.lower())).data.uid == request.auth.uid;
+    }
+
+    // a Roblox name is settable by the caller if it isn't claimed at all,
+    // or it's claimed by the caller themselves.
+    function robloxNameAvailable(name) {
+      return !robloxClaimed(name) || ownsRobloxClaim(name);
+    }
+
     // chat: read is open to everyone, but posting requires a signed-in,
     // verified username — the posted name must match the caller's own.
     match /messages/{id} {
@@ -23,7 +47,9 @@ service cloud.firestore {
                     && request.resource.data.text is string
                     && request.resource.data.text.size() > 0
                     && request.resource.data.text.size() <= 500
-                    && request.resource.data.isAdmin == isAdmin();
+                    && request.resource.data.isAdmin == isAdmin()
+                    && (!('roblox' in request.resource.data)
+                        || request.resource.data.roblox == callerRoblox());
       allow update, delete: if isAdmin();
     }
 
@@ -41,24 +67,40 @@ service cloud.firestore {
 
     // user profiles: no email is ever stored or exposed here.
     // once a username is set, it can never be changed via this doc.
-    // reserved words in a claimed username are blocked unless the caller is admin.
+    // reserved words are blocked in both the permanent username and the
+    // self-reported roblox field, unless the caller is admin.
     match /users/{uid} {
       allow read: if request.auth != null;
       allow create: if request.auth != null && request.auth.uid == uid
                     && (!('username' in request.resource.data)
                         || !isReservedUsername(request.resource.data.username)
-                        || isAdmin());
+                        || isAdmin())
+                    && (!('roblox' in request.resource.data)
+                        || (request.resource.data.roblox is string
+                            && request.resource.data.roblox.size() <= 24
+                            && (!isReservedUsername(request.resource.data.roblox) || isAdmin())
+                            && robloxNameAvailable(request.resource.data.roblox)));
       allow update: if request.auth != null && request.auth.uid == uid
                     && (!('username' in resource.data)
                         || request.resource.data.username == resource.data.username)
                     && (!('username' in request.resource.data)
                         || !isReservedUsername(request.resource.data.username)
-                        || isAdmin());
+                        || isAdmin())
+                    // roblox is unverified and freely editable by the owner,
+                    // unlike the permanent username above — but reserved words
+                    // and admin-claimed names (see robloxNames below) are blocked.
+                    && (!('roblox' in request.resource.data)
+                        || (request.resource.data.roblox is string
+                            && request.resource.data.roblox.size() <= 24
+                            && (!isReservedUsername(request.resource.data.roblox) || isAdmin())
+                            && robloxNameAvailable(request.resource.data.roblox)));
     }
 
     // username registry: one doc per lowercase username, permanently claimed.
-    // "create" only succeeds if nobody already owns that name; it can never
-    // be updated or deleted, which is what makes usernames permanent.
+    // "create" only succeeds if nobody already owns that name. It can never
+    // be updated, so a claimed name's owner never changes hands silently —
+    // but an admin can delete (unclaim) any entry, freeing that name back up
+    // for anyone to claim, including a different admin-owned reservation.
     // reserved words are blocked unless the caller is admin.
     match /usernames/{uname} {
       allow read: if request.auth != null;
@@ -66,7 +108,23 @@ service cloud.firestore {
                     && request.resource.data.uid == request.auth.uid
                     && !exists(/databases/$(database)/documents/usernames/$(uname))
                     && (!isReservedUsername(uname) || isAdmin());
-      allow update, delete: if false;
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
+    // Roblox name claims: lets an admin reserve any number of Roblox
+    // usernames exclusively for themselves (separate from the actual
+    // 'roblox' field on their own /users profile, which can only hold one
+    // at a time). While a name is claimed here, robloxNameAvailable()
+    // blocks everyone else from setting it as their own 'roblox' value.
+    // Only admins can create or delete claims; deleting one unclaims it.
+    match /robloxNames/{name} {
+      allow read: if request.auth != null;
+      allow create: if isAdmin()
+                    && request.resource.data.uid == request.auth.uid
+                    && !exists(/databases/$(database)/documents/robloxNames/$(name));
+      allow update: if false;
+      allow delete: if isAdmin();
     }
 
     // parent DM doc: holds participants + a preview, so each user can list
@@ -93,7 +151,9 @@ service cloud.firestore {
                     && request.resource.data.text is string
                     && request.resource.data.text.size() > 0
                     && request.resource.data.text.size() <= 500
-                    && request.resource.data.isAdmin == isAdmin();
+                    && request.resource.data.isAdmin == isAdmin()
+                    && (!('senderRoblox' in request.resource.data)
+                        || request.resource.data.senderRoblox == callerRoblox());
       allow update, delete: if false;
     }
   }
