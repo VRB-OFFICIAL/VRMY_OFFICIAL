@@ -339,7 +339,13 @@
             </div>
             <div id="dm-search-results" class="dm-search-results"></div>
           </div>
-          <div id="dm-thread-label" class="panel-label" style="margin-bottom:10px;">no conversation open</div>
+          <div id="dm-thread-header" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+            <div id="dm-thread-label" class="panel-label" style="margin-bottom:0;">no conversation open</div>
+            <button id="dm-view-profile-btn" class="ghost-btn" style="display:none;">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              View Profile
+            </button>
+          </div>
           <div id="dm-log" class="chat-log"><div class="empty-state">open a DM above to see messages</div></div>
           <div class="chat-input-row">
             <input type="text" id="dm-msg-input" placeholder="type a private message..." maxlength="500" disabled style="flex:1;">
@@ -354,6 +360,21 @@
   </section>
 
   <footer>VRMY_OFFICIAL &mdash; live for everyone who visits this site</footer>
+</div>
+
+<div id="profile-view-modal" class="pv-overlay" style="display:none;">
+  <div class="pv-card frame">
+    <div class="c2"></div>
+    <button id="pv-close-btn" class="ghost-btn pv-close">
+      <svg class="icon icon-only" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+    <div id="pv-loading" class="empty-state">loading…</div>
+    <div id="pv-photo" class="pv-photo" style="display:none;"></div>
+    <div id="pv-name" class="pv-name" style="display:none;"></div>
+    <div id="pv-username" class="pv-username" style="display:none;"></div>
+    <div id="pv-role" class="pv-role" style="display:none;"></div>
+    <div id="pv-roblox" class="pv-roblox" style="display:none;"></div>
+  </div>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>

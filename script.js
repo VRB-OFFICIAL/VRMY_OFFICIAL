@@ -84,9 +84,19 @@ if(CONFIGURED){
   const dmSearchResults = document.getElementById('dm-search-results');
   const dmOpenBtn = document.getElementById('dm-open-btn');
   const dmThreadLabel = document.getElementById('dm-thread-label');
+  const dmViewProfileBtn = document.getElementById('dm-view-profile-btn');
   const dmLog = document.getElementById('dm-log');
   const dmMsgInput = document.getElementById('dm-msg-input');
   const dmSendBtn = document.getElementById('dm-send-btn');
+
+  const pvModal = document.getElementById('profile-view-modal');
+  const pvCloseBtn = document.getElementById('pv-close-btn');
+  const pvLoading = document.getElementById('pv-loading');
+  const pvPhoto = document.getElementById('pv-photo');
+  const pvName = document.getElementById('pv-name');
+  const pvUsername = document.getElementById('pv-username');
+  const pvRole = document.getElementById('pv-role');
+  const pvRoblox = document.getElementById('pv-roblox');
 
   const profileSection = document.getElementById('profile-section');
   const profilePhotoPreview = document.getElementById('profile-photo-preview');
@@ -116,12 +126,18 @@ if(CONFIGURED){
   const promoteSearchResults = document.getElementById('promote-search-results');
 
   let currentDmConvo = null;
+  let currentDmOtherUid = null;
   let dmUnsub = null;
   let dmConvoListUnsub = null;
   let latestConvoDocs = [];
   let myUsername = null;
   let myRoblox = null;
   let myPhoto = null;
+
+  // cache of other users' profile docs (photo/displayName/role/roblox), keyed
+  // by uid, so we don't re-fetch every time an avatar or profile view re-renders
+  let profileCache = {};
+  let profileFetchInFlight = new Set();
 
   let latestKills = [];
   let latestSkill = [];
@@ -182,6 +198,10 @@ if(CONFIGURED){
       dmSendBtn.disabled = true;
       dmTargetUsername.value = '';
       dmConversationsList.innerHTML = '<div class="empty-state" style="padding:16px;">no conversations yet</div>';
+      currentDmOtherUid = null;
+      dmViewProfileBtn.style.display = 'none';
+      profileCache = {};
+      closeProfileView();
       promoteUsernameInput.value = '';
       promoteRoleInput.value = '';
       promoteError.style.display = 'none';
@@ -916,9 +936,11 @@ if(CONFIGURED){
       const preview = data.lastMessage ? escapeHtml(data.lastMessage) : '';
       const activeClass = currentDmConvo === d.id ? 'active' : '';
       const initial = otherName.charAt(0).toUpperCase();
+      const cachedPhoto = profileCache[otherUid] && profileCache[otherUid].photo;
+      const avatarStyle = cachedPhoto ? ` style="background-image:url('${cachedPhoto}');"` : '';
       return `
-        <div class="dm-conv-item ${activeClass}" data-id="${d.id}" data-name="${escapeHtml(otherName)}">
-          <div class="dm-conv-avatar">${escapeHtml(initial)}</div>
+        <div class="dm-conv-item ${activeClass}" data-id="${d.id}" data-name="${escapeHtml(otherName)}" data-uid="${otherUid || ''}">
+          <div class="dm-conv-avatar" data-uid="${otherUid || ''}" title="View profile"${avatarStyle}>${cachedPhoto ? '' : escapeHtml(initial)}</div>
           <div class="dm-conv-text">
             <div class="dm-conv-name">${escapeHtml(otherName)}</div>
             <div class="dm-conv-preview">${preview}</div>
@@ -929,12 +951,112 @@ if(CONFIGURED){
     dmConversationsList.querySelectorAll('.dm-conv-item').forEach(el=>{
       el.addEventListener('click', ()=> subscribeToDm(el.dataset.id, el.dataset.name));
     });
+    dmConversationsList.querySelectorAll('.dm-conv-avatar').forEach(el=>{
+      el.addEventListener('click', e=>{
+        e.stopPropagation();
+        const item = el.closest('.dm-conv-item');
+        if(el.dataset.uid) openProfileView(el.dataset.uid, item ? item.dataset.name : '');
+      });
+    });
+    // fetch photos for anyone not yet cached, then re-render once loaded
+    latestConvoDocs.forEach(d=>{
+      const data = d.data();
+      const otherUid = (data.participants || []).find(id => id !== myUid);
+      if(otherUid) ensureProfileLoaded(otherUid, ()=> renderConversationList());
+    });
   }
+
+  // ---------- PROFILE VIEWING (read-only) ----------
+  // Any signed-in member can view another member's profile (photo, display
+  // name, role, roblox tag) — Firestore rules already allow reading any
+  // /users/{uid} doc to signed-in users; this is just the UI for it.
+
+  function ensureProfileLoaded(uid, onLoaded){
+    if(!uid || !db) return;
+    if(profileCache[uid]){ onLoaded && onLoaded(profileCache[uid]); return; }
+    if(profileFetchInFlight.has(uid)) return;
+    profileFetchInFlight.add(uid);
+    db.collection('users').doc(uid).get().then(doc=>{
+      profileCache[uid] = doc.exists ? doc.data() : {};
+      profileFetchInFlight.delete(uid);
+      onLoaded && onLoaded(profileCache[uid]);
+    }).catch(e=>{
+      console.error('load profile failed', e);
+      profileFetchInFlight.delete(uid);
+    });
+  }
+
+  function renderProfileView(uid, fallbackName, data){
+    pvLoading.style.display = 'none';
+    const username = data.username || fallbackName || 'unknown';
+    const displayName = data.displayName || '';
+    pvName.textContent = displayName || username;
+    pvName.style.display = '';
+    pvUsername.textContent = '@' + username;
+    pvUsername.style.display = '';
+    if(data.photo){
+      pvPhoto.style.backgroundImage = `url('${data.photo}')`;
+      pvPhoto.textContent = '';
+    } else {
+      pvPhoto.style.backgroundImage = '';
+      pvPhoto.textContent = username.charAt(0).toUpperCase();
+    }
+    pvPhoto.style.display = '';
+    if(data.role){
+      pvRole.innerHTML = `Role: <b>${escapeHtml(data.role)}</b>`;
+      pvRole.style.display = '';
+    } else {
+      pvRole.style.display = 'none';
+    }
+    if(data.roblox){
+      pvRoblox.textContent = 'Roblox: @' + data.roblox;
+      pvRoblox.style.display = '';
+    } else {
+      pvRoblox.style.display = 'none';
+    }
+  }
+
+  function openProfileView(uid, fallbackName){
+    if(!uid || !db) return;
+    pvModal.style.display = '';
+    pvLoading.style.display = '';
+    pvLoading.textContent = 'loading…';
+    pvPhoto.style.display = 'none';
+    pvName.style.display = 'none';
+    pvUsername.style.display = 'none';
+    pvRole.style.display = 'none';
+    pvRoblox.style.display = 'none';
+    if(profileCache[uid]){
+      renderProfileView(uid, fallbackName, profileCache[uid]);
+    } else {
+      db.collection('users').doc(uid).get().then(doc=>{
+        const data = doc.exists ? doc.data() : {};
+        profileCache[uid] = data;
+        renderProfileView(uid, fallbackName, data);
+      }).catch(e=>{
+        console.error('view profile failed', e);
+        pvLoading.textContent = 'Could not load this profile.';
+      });
+    }
+  }
+
+  function closeProfileView(){
+    pvModal.style.display = 'none';
+  }
+
+  pvCloseBtn.addEventListener('click', closeProfileView);
+  pvModal.addEventListener('click', e=>{ if(e.target === pvModal) closeProfileView(); });
+  document.addEventListener('keydown', e=>{ if(e.key === 'Escape') closeProfileView(); });
+  dmViewProfileBtn.addEventListener('click', ()=>{
+    if(currentDmOtherUid) openProfileView(currentDmOtherUid, dmThreadLabel.textContent.replace('Chatting with: ', ''));
+  });
 
   function subscribeToDm(convoId, otherUsername){
     if(dmUnsub){ dmUnsub(); dmUnsub = null; }
     currentDmConvo = convoId;
+    currentDmOtherUid = convoId.split('_').find(id => id !== auth.currentUser.uid);
     dmThreadLabel.textContent = 'Chatting with: ' + otherUsername;
+    dmViewProfileBtn.style.display = currentDmOtherUid ? '' : 'none';
     dmMsgInput.disabled = false;
     dmSendBtn.disabled = false;
     dmLog.innerHTML = '<div class="empty-state">loading…</div>';
@@ -949,7 +1071,7 @@ if(CONFIGURED){
       }, err => console.error('dm listener error', err));
 
     // register/refresh this conversation so it shows up in both users' history
-    const otherUid = convoId.split('_').find(id => id !== auth.currentUser.uid);
+    const otherUid = currentDmOtherUid;
     db.collection('dms').doc(convoId).set({
       participants: convoId.split('_'),
       participantNames: {
