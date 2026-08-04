@@ -299,11 +299,13 @@
           <svg class="icon" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           promote a member
         </div>
-        <div class="chat-input-row" style="margin-bottom:6px;">
-          <input type="text" id="promote-username-input" placeholder="their username" maxlength="20" style="flex:1;">
+        <div class="chat-input-row" style="margin-bottom:6px; position:relative;">
+          <svg class="icon" viewBox="0 0 24 24" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color: var(--text-dim); margin:0;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="promote-username-input" placeholder="search a username, or type it manually" maxlength="20" autocomplete="off" style="flex:1; padding-left:34px;">
           <input type="text" id="promote-role-input" placeholder="new role (e.g. Moderator)" maxlength="40" style="flex:1;">
           <button id="promote-btn">Promote</button>
         </div>
+        <div id="promote-search-results" class="dm-search-results"></div>
         <div id="promote-error" style="display:none; color: var(--red); font-size: 12px;"></div>
         <div id="promote-success" style="display:none; color: var(--green); font-size: 12px;"></div>
       </div>

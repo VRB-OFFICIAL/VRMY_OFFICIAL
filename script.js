@@ -113,6 +113,7 @@ if(CONFIGURED){
   const promoteBtn = document.getElementById('promote-btn');
   const promoteError = document.getElementById('promote-error');
   const promoteSuccess = document.getElementById('promote-success');
+  const promoteSearchResults = document.getElementById('promote-search-results');
 
   let currentDmConvo = null;
   let dmUnsub = null;
@@ -181,6 +182,11 @@ if(CONFIGURED){
       dmSendBtn.disabled = true;
       dmTargetUsername.value = '';
       dmConversationsList.innerHTML = '<div class="empty-state" style="padding:16px;">no conversations yet</div>';
+      promoteUsernameInput.value = '';
+      promoteRoleInput.value = '';
+      promoteError.style.display = 'none';
+      promoteSuccess.style.display = 'none';
+      hidePromoteSearchResults();
     }
     updateChatAccess();
   }
@@ -845,6 +851,7 @@ if(CONFIGURED){
           promoteSuccess.style.display = '';
           promoteUsernameInput.value = '';
           promoteRoleInput.value = '';
+          hidePromoteSearchResults();
         }
       }
     }catch(e){
@@ -956,6 +963,49 @@ if(CONFIGURED){
   }
 
   let dmSearchDebounce = null;
+  let promoteSearchDebounce = null;
+
+  // Same idea as the DM username search below, but for the admin's
+  // "promote a member" box — lets an admin find the right person by typing
+  // part of their username instead of having to know/type it in full.
+  // Picking a result just fills the field; typing the full username by
+  // hand and hitting Promote still works exactly as before.
+  function hidePromoteSearchResults(){
+    promoteSearchResults.classList.remove('show');
+    promoteSearchResults.innerHTML = '';
+  }
+
+  function pickPromoteResult(username){
+    promoteUsernameInput.value = username;
+    hidePromoteSearchResults();
+    promoteRoleInput.focus();
+  }
+
+  async function searchPromoteUsernames(){
+    const raw = promoteUsernameInput.value.trim();
+    if(!raw || !isAdmin || !auth || !auth.currentUser || !db){ hidePromoteSearchResults(); return; }
+    const prefix = raw.toLowerCase();
+    try{
+      const snap = await db.collection('usernames')
+        .orderBy(firebase.firestore.FieldPath.documentId())
+        .startAt(prefix).endAt(prefix + '\uf8ff')
+        .limit(8).get();
+      const items = snap.docs
+        .filter(d => d.id !== (myUsername || '').toLowerCase())
+        .map(d => ({ username: d.data().username || d.id }));
+      if(!items.length){
+        promoteSearchResults.innerHTML = '<div class="dm-search-empty">no matching usernames</div>';
+      } else {
+        promoteSearchResults.innerHTML = items.map(it =>
+          `<div class="dm-search-item" data-username="${escapeHtml(it.username)}">@${escapeHtml(it.username)}</div>`
+        ).join('');
+        promoteSearchResults.querySelectorAll('.dm-search-item').forEach(el=>{
+          el.addEventListener('click', ()=> pickPromoteResult(el.dataset.username));
+        });
+      }
+      promoteSearchResults.classList.add('show');
+    }catch(e){ console.error('promote username search failed', e); hidePromoteSearchResults(); }
+  }
 
   function hideDmSearchResults(){
     dmSearchResults.classList.remove('show');
@@ -1060,6 +1110,14 @@ if(CONFIGURED){
   reserveRobloxInput.addEventListener('keydown', e=>{ if(e.key === 'Enter') reserveRoblox(); });
   promoteBtn.addEventListener('click', promoteMember);
   promoteRoleInput.addEventListener('keydown', e=>{ if(e.key === 'Enter') promoteMember(); });
+  promoteUsernameInput.addEventListener('keydown', e=>{ if(e.key === 'Enter') promoteMember(); });
+  promoteUsernameInput.addEventListener('input', ()=>{
+    if(promoteSearchDebounce) clearTimeout(promoteSearchDebounce);
+    promoteSearchDebounce = setTimeout(searchPromoteUsernames, 250);
+  });
+  promoteUsernameInput.addEventListener('focus', ()=>{
+    if(promoteUsernameInput.value.trim()) searchPromoteUsernames();
+  });
   dmNewBtn.addEventListener('click', ()=>{
     const showing = dmNewSearch.style.display !== 'none';
     dmNewSearch.style.display = showing ? 'none' : '';
@@ -1077,6 +1135,7 @@ if(CONFIGURED){
   });
   document.addEventListener('click', e=>{
     if(!dmSearchResults.contains(e.target) && e.target !== dmTargetUsername) hideDmSearchResults();
+    if(!promoteSearchResults.contains(e.target) && e.target !== promoteUsernameInput) hidePromoteSearchResults();
   });
   dmSendBtn.addEventListener('click', sendDm);
   dmMsgInput.addEventListener('keydown', e=>{ if(e.key === 'Enter') sendDm(); });
