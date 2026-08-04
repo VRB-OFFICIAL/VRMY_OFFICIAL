@@ -84,6 +84,16 @@ if(CONFIGURED){
   const dmMsgInput = document.getElementById('dm-msg-input');
   const dmSendBtn = document.getElementById('dm-send-btn');
 
+  const adminReserved = document.getElementById('admin-reserved');
+  const reserveUsernameInput = document.getElementById('reserve-username-input');
+  const reserveUsernameBtn = document.getElementById('reserve-username-btn');
+  const reserveUsernameError = document.getElementById('reserve-username-error');
+  const reservedUsernamesList = document.getElementById('reserved-usernames-list');
+  const reserveRobloxInput = document.getElementById('reserve-roblox-input');
+  const reserveRobloxBtn = document.getElementById('reserve-roblox-btn');
+  const reserveRobloxError = document.getElementById('reserve-roblox-error');
+  const reservedRobloxList = document.getElementById('reserved-roblox-list');
+
   let currentDmConvo = null;
   let dmUnsub = null;
   let dmConvoListUnsub = null;
@@ -124,6 +134,8 @@ if(CONFIGURED){
 
     dmSignedOut.style.display = user ? 'none' : '';
     dmSignedIn.style.display = user ? '' : 'none';
+    adminReserved.style.display = isAdmin ? '' : 'none';
+    if(isAdmin){ loadReservedUsernames(); loadReservedRoblox(); }
     if(!user){
       if(dmUnsub){ dmUnsub(); dmUnsub = null; }
       if(dmConvoListUnsub){ dmConvoListUnsub(); dmConvoListUnsub = null; }
@@ -181,6 +193,7 @@ if(CONFIGURED){
           } else {
             showUsernamePicker();
           }
+          if(isAdmin) loadReservedUsernames();
           // keep the account's email privately for admin checks; never displayed
           return db.collection('users').doc(user.uid).set({
             hasAccount: true,
@@ -443,6 +456,12 @@ if(CONFIGURED){
       dmRobloxInput.style.borderColor = 'var(--red)';
       return;
     }
+    if(raw && RESERVED_WORDS_RE.test(raw) && !ADMIN_EMAILS.includes(auth.currentUser.email)){
+      dmRobloxInput.title = 'That Roblox username contains a reserved word.';
+      dmRobloxInput.style.borderColor = 'var(--red)';
+      return;
+    }
+    dmRobloxInput.title = '';
     dmRobloxInput.style.borderColor = '';
     dmRobloxSaveBtn.disabled = true;
     try{
@@ -452,8 +471,120 @@ if(CONFIGURED){
       }, { merge: true });
       myRoblox = raw || null;
       dmRobloxInput.value = raw;
-    }catch(e){ console.error('save roblox failed', e); }
+    }catch(e){
+      console.error('save roblox failed', e);
+      if(e && e.code === 'permission-denied'){
+        dmRobloxInput.title = 'That Roblox username is reserved and can\'t be used.';
+        dmRobloxInput.style.borderColor = 'var(--red)';
+      }
+    }
     dmRobloxSaveBtn.disabled = false;
+  }
+
+  // ---------- ADMIN: RESERVED NAMES (usernames + roblox names) ----------
+  // Admins can claim as many usernames/roblox names as they like; while
+  // claimed, nobody else can register that username or set that roblox
+  // name on their own profile. Unclaiming (delete) frees the name again.
+  // Enforcement lives in Firestore rules — this is just the UI for it.
+
+  function renderReservedList(container, items, onUnclaim, emptyText){
+    if(!items.length){
+      container.innerHTML = `<div class="dm-search-empty">${emptyText}</div>`;
+      return;
+    }
+    container.innerHTML = items.map(it => `
+      <div class="dm-search-item" style="display:flex; align-items:center; justify-content:space-between;">
+        <span>${escapeHtml(it.label)}</span>
+        <button class="del-btn" data-id="${it.id}" title="unclaim">
+          <svg class="icon icon-only" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+        </button>
+      </div>
+    `).join('');
+    container.querySelectorAll('.del-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=> onUnclaim(btn.dataset.id));
+    });
+  }
+
+  async function loadReservedUsernames(){
+    if(!isAdmin || !auth || !auth.currentUser || !db) return;
+    try{
+      const snap = await db.collection('usernames').where('uid', '==', auth.currentUser.uid).get();
+      const items = snap.docs
+        .map(d => ({ id: d.id, label: d.data().username || d.id }))
+        .filter(it => it.id !== (myUsername || '').toLowerCase()); // hide your own active username
+      renderReservedList(reservedUsernamesList, items, unclaimUsername, 'no extra usernames reserved');
+    }catch(e){ console.error('load reserved usernames failed', e); }
+  }
+
+  async function loadReservedRoblox(){
+    if(!isAdmin || !auth || !auth.currentUser || !db) return;
+    try{
+      const snap = await db.collection('robloxNames').where('uid', '==', auth.currentUser.uid).get();
+      const items = snap.docs.map(d => ({ id: d.id, label: d.data().roblox || d.id }));
+      renderReservedList(reservedRobloxList, items, unclaimRoblox, 'no roblox names reserved');
+    }catch(e){ console.error('load reserved roblox failed', e); }
+  }
+
+  async function reserveUsername(){
+    if(!isAdmin || !auth || !auth.currentUser || !db) return;
+    const raw = reserveUsernameInput.value.trim();
+    reserveUsernameError.style.display = 'none';
+    if(!USERNAME_RE.test(raw)){
+      reserveUsernameError.textContent = '3-20 characters, letters/numbers/underscore only.';
+      reserveUsernameError.style.display = '';
+      return;
+    }
+    const lower = raw.toLowerCase();
+    reserveUsernameBtn.disabled = true;
+    try{
+      await db.collection('usernames').doc(lower).set({ uid: auth.currentUser.uid, username: raw });
+      reserveUsernameInput.value = '';
+      loadReservedUsernames();
+    }catch(e){
+      console.error('reserve username failed', e);
+      reserveUsernameError.textContent = (e && e.code === 'permission-denied')
+        ? 'That username is already taken or reserved.'
+        : 'Something went wrong — try again.';
+      reserveUsernameError.style.display = '';
+    }
+    reserveUsernameBtn.disabled = false;
+  }
+
+  async function unclaimUsername(name){
+    if(!isAdmin || !db) return;
+    try{ await db.collection('usernames').doc(name).delete(); loadReservedUsernames(); }
+    catch(e){ console.error('unclaim username failed', e); }
+  }
+
+  async function reserveRoblox(){
+    if(!isAdmin || !auth || !auth.currentUser || !db) return;
+    const raw = reserveRobloxInput.value.trim().replace(/^@/, '');
+    reserveRobloxError.style.display = 'none';
+    if(!ROBLOX_RE.test(raw) || !raw){
+      reserveRobloxError.textContent = 'Letters, numbers, underscore only (max 24 chars).';
+      reserveRobloxError.style.display = '';
+      return;
+    }
+    const lower = raw.toLowerCase();
+    reserveRobloxBtn.disabled = true;
+    try{
+      await db.collection('robloxNames').doc(lower).set({ uid: auth.currentUser.uid, roblox: raw });
+      reserveRobloxInput.value = '';
+      loadReservedRoblox();
+    }catch(e){
+      console.error('reserve roblox failed', e);
+      reserveRobloxError.textContent = (e && e.code === 'permission-denied')
+        ? 'That roblox username is already reserved.'
+        : 'Something went wrong — try again.';
+      reserveRobloxError.style.display = '';
+    }
+    reserveRobloxBtn.disabled = false;
+  }
+
+  async function unclaimRoblox(name){
+    if(!isAdmin || !db) return;
+    try{ await db.collection('robloxNames').doc(name).delete(); loadReservedRoblox(); }
+    catch(e){ console.error('unclaim roblox failed', e); }
   }
 
   function convoIdFor(uidA, uidB){
@@ -645,6 +776,10 @@ if(CONFIGURED){
   dmUsernameInput.addEventListener('keydown', e=>{ if(e.key === 'Enter') claimUsername(); });
   dmRobloxSaveBtn.addEventListener('click', saveRoblox);
   dmRobloxInput.addEventListener('keydown', e=>{ if(e.key === 'Enter') saveRoblox(); });
+  reserveUsernameBtn.addEventListener('click', reserveUsername);
+  reserveUsernameInput.addEventListener('keydown', e=>{ if(e.key === 'Enter') reserveUsername(); });
+  reserveRobloxBtn.addEventListener('click', reserveRoblox);
+  reserveRobloxInput.addEventListener('keydown', e=>{ if(e.key === 'Enter') reserveRoblox(); });
   dmNewBtn.addEventListener('click', ()=>{
     const showing = dmNewSearch.style.display !== 'none';
     dmNewSearch.style.display = showing ? 'none' : '';

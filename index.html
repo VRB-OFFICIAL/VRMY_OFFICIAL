@@ -227,6 +227,28 @@
         </div>
       </div>
 
+      <!-- admin-only: reserve/unclaim usernames & roblox names so no one else can take them -->
+      <div id="admin-reserved" style="display:none; margin-bottom:16px;">
+        <div class="panel-label" style="margin-bottom:8px;">
+          <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          admin — reserved names
+        </div>
+
+        <div class="chat-input-row" style="margin-bottom:6px;">
+          <input type="text" id="reserve-username-input" placeholder="reserve a username" maxlength="20" style="flex:1;">
+          <button id="reserve-username-btn">Reserve</button>
+        </div>
+        <div id="reserve-username-error" style="display:none; color: var(--red); font-size: 12px; margin-bottom:8px;"></div>
+        <div id="reserved-usernames-list" class="dm-search-results show" style="margin-bottom:16px;"></div>
+
+        <div class="chat-input-row" style="margin-bottom:6px;">
+          <input type="text" id="reserve-roblox-input" placeholder="reserve a roblox username" maxlength="24" style="flex:1;">
+          <button id="reserve-roblox-btn">Reserve</button>
+        </div>
+        <div id="reserve-roblox-error" style="display:none; color: var(--red); font-size: 12px; margin-bottom:8px;"></div>
+        <div id="reserved-roblox-list" class="dm-search-results show"></div>
+      </div>
+
       <div class="dm-layout">
         <div class="dm-sidebar">
           <div class="dm-sidebar-header">
