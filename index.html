@@ -265,7 +265,10 @@
           <input type="text" id="profile-name-input" placeholder="display name" maxlength="40" style="flex:1;">
         </div>
         <div class="chat-input-row" style="margin-bottom:8px;">
-          <input type="text" id="profile-role-input" placeholder="role (e.g. Moderator, Member)" maxlength="40" style="flex:1;">
+          <input type="text" id="profile-role-input" placeholder="role" maxlength="40" style="flex:1;" disabled value="Member">
+        </div>
+        <div id="profile-role-note" style="font-size:11.5px; color: var(--text-dim); font-style: italic; margin-bottom:8px;">
+          Everyone starts as "Member" — only an admin can promote you to a different role.
         </div>
         <button id="profile-save-btn">Save Profile</button>
         <div id="profile-save-error" style="display:none; color: var(--red); font-size: 12px; margin-top:8px;"></div>
@@ -290,7 +293,19 @@
           <button id="reserve-roblox-btn">Reserve</button>
         </div>
         <div id="reserve-roblox-error" style="display:none; color: var(--red); font-size: 12px; margin-bottom:8px;"></div>
-        <div id="reserved-roblox-list" class="dm-search-results show"></div>
+        <div id="reserved-roblox-list" class="dm-search-results show" style="margin-bottom:16px;"></div>
+
+        <div class="panel-label" style="margin-bottom:8px;">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          promote a member
+        </div>
+        <div class="chat-input-row" style="margin-bottom:6px;">
+          <input type="text" id="promote-username-input" placeholder="their username" maxlength="20" style="flex:1;">
+          <input type="text" id="promote-role-input" placeholder="new role (e.g. Moderator)" maxlength="40" style="flex:1;">
+          <button id="promote-btn">Promote</button>
+        </div>
+        <div id="promote-error" style="display:none; color: var(--red); font-size: 12px;"></div>
+        <div id="promote-success" style="display:none; color: var(--green); font-size: 12px;"></div>
       </div>
 
       <div class="dm-layout">

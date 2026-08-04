@@ -108,6 +108,11 @@ if(CONFIGURED){
   const reserveRobloxBtn = document.getElementById('reserve-roblox-btn');
   const reserveRobloxError = document.getElementById('reserve-roblox-error');
   const reservedRobloxList = document.getElementById('reserved-roblox-list');
+  const promoteUsernameInput = document.getElementById('promote-username-input');
+  const promoteRoleInput = document.getElementById('promote-role-input');
+  const promoteBtn = document.getElementById('promote-btn');
+  const promoteError = document.getElementById('promote-error');
+  const promoteSuccess = document.getElementById('promote-success');
 
   let currentDmConvo = null;
   let dmUnsub = null;
@@ -215,7 +220,8 @@ if(CONFIGURED){
           myPhoto = doc.exists ? (doc.data().photo || null) : null;
           dmRobloxInput.value = myRoblox || '';
           profileNameInput.value = doc.exists ? (doc.data().displayName || '') : '';
-          profileRoleInput.value = doc.exists ? (doc.data().role || '') : '';
+          profileRoleInput.value = doc.exists ? (doc.data().role || 'Member') : 'Member';
+          profileRoleInput.disabled = !isAdmin;
           renderProfilePreview();
           profileSection.style.display = '';
           if(existing){
@@ -622,19 +628,31 @@ if(CONFIGURED){
   async function saveProfile(){
     if(!auth || !auth.currentUser || !db) return;
     const displayName = profileNameInput.value.trim();
-    const role = profileRoleInput.value.trim();
     profileSaveError.style.display = 'none';
+    if(displayName && RESERVED_WORDS_RE.test(displayName) && !ADMIN_EMAILS.includes(auth.currentUser.email)){
+      profileSaveError.textContent = 'That display name contains a reserved word.';
+      profileSaveError.style.display = '';
+      return;
+    }
+    if(displayName && VRB_LOCKED_RE.test(displayName) && auth.currentUser.email !== SUPER_ADMIN_EMAIL){
+      profileSaveError.textContent = 'That display name isn\'t available.';
+      profileSaveError.style.display = '';
+      return;
+    }
     profileSaveBtn.disabled = true;
     try{
-      await db.collection('users').doc(auth.currentUser.uid).set({
+      const update = {
         displayName: displayName || firebase.firestore.FieldValue.delete(),
-        role: role || firebase.firestore.FieldValue.delete(),
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      }, { merge: true });
+      };
+      if(isAdmin) update.role = profileRoleInput.value.trim() || 'Member';
+      await db.collection('users').doc(auth.currentUser.uid).set(update, { merge: true });
       renderProfilePreview();
     }catch(e){
       console.error('save profile failed', e);
-      profileSaveError.textContent = 'Something went wrong — try again.';
+      profileSaveError.textContent = (e && e.code === 'permission-denied')
+        ? 'That name isn\'t available — it may already be a claimed username.'
+        : 'Something went wrong — try again.';
       profileSaveError.style.display = '';
     }
     profileSaveBtn.disabled = false;
@@ -788,6 +806,55 @@ if(CONFIGURED){
     if(!isAdmin || !db) return;
     try{ await db.collection('robloxNames').doc(name).delete(); loadReservedRoblox(); }
     catch(e){ console.error('unclaim roblox failed', e); }
+  }
+
+  async function promoteMember(){
+    if(!isAdmin || !auth || !auth.currentUser || !db) return;
+    const targetName = promoteUsernameInput.value.trim();
+    const newRole = promoteRoleInput.value.trim();
+    promoteError.style.display = 'none';
+    promoteSuccess.style.display = 'none';
+    if(!targetName || !newRole) return;
+    if(RESERVED_WORDS_RE.test(newRole) && !ADMIN_EMAILS.includes(auth.currentUser.email)){
+      promoteError.textContent = 'That role contains a reserved word.';
+      promoteError.style.display = '';
+      return;
+    }
+    if(VRB_LOCKED_RE.test(newRole) && auth.currentUser.email !== SUPER_ADMIN_EMAIL){
+      promoteError.textContent = 'That role isn\'t available.';
+      promoteError.style.display = '';
+      return;
+    }
+    promoteBtn.disabled = true;
+    try{
+      const unameDoc = await db.collection('usernames').doc(targetName.toLowerCase()).get();
+      if(!unameDoc.exists){
+        promoteError.textContent = 'No user found with that username.';
+        promoteError.style.display = '';
+      } else {
+        const targetUid = unameDoc.data().uid;
+        if(targetUid === auth.currentUser.uid){
+          promoteError.textContent = 'Use the profile section above to edit your own role.';
+          promoteError.style.display = '';
+        } else {
+          await db.collection('users').doc(targetUid).update({
+            role: newRole,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          promoteSuccess.textContent = `${unameDoc.data().username || targetName} is now "${newRole}".`;
+          promoteSuccess.style.display = '';
+          promoteUsernameInput.value = '';
+          promoteRoleInput.value = '';
+        }
+      }
+    }catch(e){
+      console.error('promote failed', e);
+      promoteError.textContent = (e && e.code === 'permission-denied')
+        ? 'That role isn\'t available (reserved word or claimed name).'
+        : 'Something went wrong — try again.';
+      promoteError.style.display = '';
+    }
+    promoteBtn.disabled = false;
   }
 
   function convoIdFor(uidA, uidB){
@@ -991,6 +1058,8 @@ if(CONFIGURED){
   reserveUsernameInput.addEventListener('keydown', e=>{ if(e.key === 'Enter') reserveUsername(); });
   reserveRobloxBtn.addEventListener('click', reserveRoblox);
   reserveRobloxInput.addEventListener('keydown', e=>{ if(e.key === 'Enter') reserveRoblox(); });
+  promoteBtn.addEventListener('click', promoteMember);
+  promoteRoleInput.addEventListener('keydown', e=>{ if(e.key === 'Enter') promoteMember(); });
   dmNewBtn.addEventListener('click', ()=>{
     const showing = dmNewSearch.style.display !== 'none';
     dmNewSearch.style.display = showing ? 'none' : '';

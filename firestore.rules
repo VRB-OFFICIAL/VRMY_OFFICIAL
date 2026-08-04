@@ -32,6 +32,17 @@ service cloud.firestore {
           && (!isVrbLocked(name) || isSuperAdmin());
     }
 
+    // role/displayName check: ordinary members can only ever have role "member",
+    // exactly. Only an admin can set anything else (that's how you promote
+    // someone) — and even for an admin, the value must pass nameAllowed()
+    // (blocks the same reserved words / vrb rule as usernames) and must not
+    // be a name someone has claimed in the usernames/robloxNames registries.
+    function profileTextAllowed(text) {
+      return nameAllowed(text)
+          && !exists(/databases/$(database)/documents/usernames/$(text.lower()))
+          && !exists(/databases/$(database)/documents/robloxNames/$(text.lower()));
+    }
+
     // the caller's own (unverified, self-reported) Roblox username, or null
     // if they haven't set one. Used so chat/DM messages can only carry the
     // Roblox tag that's actually on the sender's own profile — no spoofing.
@@ -117,10 +128,16 @@ service cloud.firestore {
                             && robloxNameAvailable(request.resource.data.roblox)))
                     && (!('displayName' in request.resource.data)
                         || (request.resource.data.displayName is string
-                            && request.resource.data.displayName.size() <= 40))
+                            && request.resource.data.displayName.size() <= 40
+                            && (isAdmin() || request.resource.data.displayName.size() == 0)
+                            && (request.resource.data.displayName.size() == 0
+                                || profileTextAllowed(request.resource.data.displayName))))
                     && (!('role' in request.resource.data)
                         || (request.resource.data.role is string
-                            && request.resource.data.role.size() <= 40))
+                            && request.resource.data.role.size() <= 40
+                            && (isAdmin()
+                                ? profileTextAllowed(request.resource.data.role)
+                                : request.resource.data.role == 'Member')))
                     && (!('photo' in request.resource.data)
                         || (request.resource.data.photo is string
                             && request.resource.data.photo.size() <= 700000));
@@ -138,15 +155,39 @@ service cloud.firestore {
                             && request.resource.data.roblox.size() <= 24
                             && nameAllowed(request.resource.data.roblox)
                             && robloxNameAvailable(request.resource.data.roblox)))
+                    // displayName: ordinary members can only ever clear it or
+                    // leave it untouched — only an admin can set real text,
+                    // and it's still checked against reserved words/vrb/claims.
                     && (!('displayName' in request.resource.data)
-                        || (request.resource.data.displayName is string
-                            && request.resource.data.displayName.size() <= 40))
+                        || request.resource.data.displayName == resource.data.get('displayName', '')
+                        || (isAdmin()
+                            && request.resource.data.displayName is string
+                            && request.resource.data.displayName.size() <= 40
+                            && (request.resource.data.displayName.size() == 0
+                                || profileTextAllowed(request.resource.data.displayName))))
+                    // role: ordinary members are locked to exactly "Member".
+                    // only an admin can promote someone to anything else —
+                    // that's the deliberate "I raise their rank" mechanism.
                     && (!('role' in request.resource.data)
-                        || (request.resource.data.role is string
-                            && request.resource.data.role.size() <= 40))
+                        || request.resource.data.role == resource.data.get('role', 'Member')
+                        || (isAdmin()
+                            && request.resource.data.role is string
+                            && request.resource.data.role.size() <= 40
+                            && profileTextAllowed(request.resource.data.role)))
                     && (!('photo' in request.resource.data)
                         || (request.resource.data.photo is string
                             && request.resource.data.photo.size() <= 700000));
+
+      // promotion path: lets an admin change ONLY someone else's role,
+      // and nothing else on their profile — this is the "raise their rank"
+      // mechanism. The role must still pass the same reserved-word/vrb/
+      // claimed-name checks as everywhere else.
+      allow update: if isAdmin()
+                    && request.auth.uid != uid
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'updatedAt'])
+                    && request.resource.data.role is string
+                    && request.resource.data.role.size() <= 40
+                    && profileTextAllowed(request.resource.data.role);
     }
 
     // username registry: one doc per lowercase username, permanently claimed.
