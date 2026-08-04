@@ -408,6 +408,8 @@ if(CONFIGURED){
 
   const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
   const RESERVED_WORDS_RE = /(dev|owner|admin|developer|helper)/i;
+  const VRB_LOCKED_RE = /vrb/i;
+  const SUPER_ADMIN_EMAIL = 'kokomona946@gmail.com';
 
   async function claimUsername(){
     if(!auth || !auth.currentUser || !db) return;
@@ -420,6 +422,11 @@ if(CONFIGURED){
     }
     if(RESERVED_WORDS_RE.test(name) && !ADMIN_EMAILS.includes(auth.currentUser.email)){
       dmUsernameError.textContent = 'That username contains a reserved word and can\'t be used.';
+      dmUsernameError.style.display = '';
+      return;
+    }
+    if(VRB_LOCKED_RE.test(name) && auth.currentUser.email !== SUPER_ADMIN_EMAIL){
+      dmUsernameError.textContent = 'That username isn\'t available.';
       dmUsernameError.style.display = '';
       return;
     }
@@ -464,6 +471,11 @@ if(CONFIGURED){
     }
     if(raw && RESERVED_WORDS_RE.test(raw) && !ADMIN_EMAILS.includes(auth.currentUser.email)){
       dmRobloxInput.title = 'That Roblox username contains a reserved word.';
+      dmRobloxInput.style.borderColor = 'var(--red)';
+      return;
+    }
+    if(raw && VRB_LOCKED_RE.test(raw) && auth.currentUser.email !== SUPER_ADMIN_EMAIL){
+      dmRobloxInput.title = 'That Roblox username isn\'t available.';
       dmRobloxInput.style.borderColor = 'var(--red)';
       return;
     }
@@ -540,6 +552,11 @@ if(CONFIGURED){
       reserveUsernameError.style.display = '';
       return;
     }
+    if(VRB_LOCKED_RE.test(raw) && auth.currentUser.email !== SUPER_ADMIN_EMAIL){
+      reserveUsernameError.textContent = 'That username isn\'t available.';
+      reserveUsernameError.style.display = '';
+      return;
+    }
     const lower = raw.toLowerCase();
     reserveUsernameBtn.disabled = true;
     try{
@@ -571,6 +588,11 @@ if(CONFIGURED){
       dmUsernameSwitchError.style.display = '';
       return;
     }
+    if(VRB_LOCKED_RE.test(raw) && auth.currentUser.email !== SUPER_ADMIN_EMAIL){
+      dmUsernameSwitchError.textContent = 'That username isn\'t available.';
+      dmUsernameSwitchError.style.display = '';
+      return;
+    }
     dmUsernameSwitchBtn.disabled = true;
     try{
       await db.collection('users').doc(auth.currentUser.uid).set({
@@ -597,6 +619,11 @@ if(CONFIGURED){
     reserveRobloxError.style.display = 'none';
     if(!ROBLOX_RE.test(raw) || !raw){
       reserveRobloxError.textContent = 'Letters, numbers, underscore only (max 24 chars).';
+      reserveRobloxError.style.display = '';
+      return;
+    }
+    if(VRB_LOCKED_RE.test(raw) && auth.currentUser.email !== SUPER_ADMIN_EMAIL){
+      reserveRobloxError.textContent = 'That roblox username isn\'t available.';
       reserveRobloxError.style.display = '';
       return;
     }

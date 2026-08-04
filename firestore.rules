@@ -7,10 +7,29 @@ service cloud.firestore {
         request.auth.token.email in ['kokomona946@gmail.com', 'kokomina946@gmail.com'];
     }
 
+    // only this one account — NOT kokomina946@gmail.com, even though it's
+    // otherwise a full admin — can bypass the "vrb" lock below.
+    function isSuperAdmin() {
+      return request.auth != null && request.auth.token.email == 'kokomona946@gmail.com';
+    }
+
     // blocks "dev", "owner", "admin", "developer", "helper" (any case, anywhere
     // in the name) from being claimed by anyone except the two admin emails.
     function isReservedUsername(name) {
       return name.lower().matches('.*(dev|owner|admin|developer|helper).*');
+    }
+
+    // blocks "vrb" (any case, anywhere in the name) for absolutely everyone
+    // except kokomona946@gmail.com.
+    function isVrbLocked(name) {
+      return name.lower().matches('.*vrb.*');
+    }
+
+    // combined check used everywhere a username/roblox value is validated:
+    // ordinary reserved words need admin, "vrb" needs the super admin.
+    function nameAllowed(name) {
+      return (!isReservedUsername(name) || isAdmin())
+          && (!isVrbLocked(name) || isSuperAdmin());
     }
 
     // the caller's own (unverified, self-reported) Roblox username, or null
@@ -81,32 +100,31 @@ service cloud.firestore {
     // name the caller has already claimed for themselves in the usernames
     // registry (an admin's own reservation, or their currently-claimed name) —
     // that's what lets an admin switch to a reserved name they own.
-    // reserved words are blocked in both fields, unless the caller is admin.
+    // reserved words are blocked in both fields unless the caller is admin;
+    // "vrb" is blocked for everyone except kokomona946@gmail.com specifically.
     match /users/{uid} {
       allow read: if request.auth != null;
       allow create: if request.auth != null && request.auth.uid == uid
                     && (!('username' in request.resource.data)
-                        || !isReservedUsername(request.resource.data.username)
-                        || isAdmin())
+                        || nameAllowed(request.resource.data.username))
                     && (!('roblox' in request.resource.data)
                         || (request.resource.data.roblox is string
                             && request.resource.data.roblox.size() <= 24
-                            && (!isReservedUsername(request.resource.data.roblox) || isAdmin())
+                            && nameAllowed(request.resource.data.roblox)
                             && robloxNameAvailable(request.resource.data.roblox)));
       allow update: if request.auth != null && request.auth.uid == uid
                     && (!('username' in resource.data)
                         || request.resource.data.username == resource.data.username
                         || (isAdmin() && usernameAvailable(request.resource.data.username)))
                     && (!('username' in request.resource.data)
-                        || !isReservedUsername(request.resource.data.username)
-                        || isAdmin())
+                        || nameAllowed(request.resource.data.username))
                     // roblox is unverified and freely editable by the owner,
                     // unlike the permanent username above — but reserved words
                     // and admin-claimed names (see robloxNames below) are blocked.
                     && (!('roblox' in request.resource.data)
                         || (request.resource.data.roblox is string
                             && request.resource.data.roblox.size() <= 24
-                            && (!isReservedUsername(request.resource.data.roblox) || isAdmin())
+                            && nameAllowed(request.resource.data.roblox)
                             && robloxNameAvailable(request.resource.data.roblox)));
     }
 
@@ -115,13 +133,14 @@ service cloud.firestore {
     // be updated, so a claimed name's owner never changes hands silently —
     // but an admin can delete (unclaim) any entry, freeing that name back up
     // for anyone to claim, including a different admin-owned reservation.
-    // reserved words are blocked unless the caller is admin.
+    // reserved words are blocked unless the caller is admin; "vrb" is blocked
+    // unless the caller is kokomona946@gmail.com specifically.
     match /usernames/{uname} {
       allow read: if request.auth != null;
       allow create: if request.auth != null
                     && request.resource.data.uid == request.auth.uid
                     && !exists(/databases/$(database)/documents/usernames/$(uname))
-                    && (!isReservedUsername(uname) || isAdmin());
+                    && nameAllowed(uname);
       allow update: if false;
       allow delete: if isAdmin();
     }
@@ -132,9 +151,11 @@ service cloud.firestore {
     // at a time). While a name is claimed here, robloxNameAvailable()
     // blocks everyone else from setting it as their own 'roblox' value.
     // Only admins can create or delete claims; deleting one unclaims it.
+    // "vrb" claims are further restricted to kokomona946@gmail.com only.
     match /robloxNames/{name} {
       allow read: if request.auth != null;
       allow create: if isAdmin()
+                    && (!isVrbLocked(name) || isSuperAdmin())
                     && request.resource.data.uid == request.auth.uid
                     && !exists(/databases/$(database)/documents/robloxNames/$(name));
       allow update: if false;
