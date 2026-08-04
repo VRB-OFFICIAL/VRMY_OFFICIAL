@@ -37,6 +37,17 @@ service cloud.firestore {
       return !robloxClaimed(name) || ownsRobloxClaim(name);
     }
 
+    // is the caller the one who claimed this username?
+    function ownsUsernameClaim(uname) {
+      return get(/databases/$(database)/documents/usernames/$(uname.lower())).data.uid == request.auth.uid;
+    }
+
+    // a username is settable by the caller if it isn't claimed at all,
+    // or it's claimed by the caller themselves.
+    function usernameAvailable(uname) {
+      return !exists(/databases/$(database)/documents/usernames/$(uname.lower())) || ownsUsernameClaim(uname);
+    }
+
     // chat: read is open to everyone, but posting requires a signed-in,
     // verified username — the posted name must match the caller's own.
     match /messages/{id} {
@@ -66,9 +77,11 @@ service cloud.firestore {
     }
 
     // user profiles: no email is ever stored or exposed here.
-    // once a username is set, it can never be changed via this doc.
-    // reserved words are blocked in both the permanent username and the
-    // self-reported roblox field, unless the caller is admin.
+    // the permanent username can never change UNLESS the new value is a
+    // name the caller has already claimed for themselves in the usernames
+    // registry (an admin's own reservation, or their currently-claimed name) —
+    // that's what lets an admin switch to a reserved name they own.
+    // reserved words are blocked in both fields, unless the caller is admin.
     match /users/{uid} {
       allow read: if request.auth != null;
       allow create: if request.auth != null && request.auth.uid == uid
@@ -82,7 +95,8 @@ service cloud.firestore {
                             && robloxNameAvailable(request.resource.data.roblox)));
       allow update: if request.auth != null && request.auth.uid == uid
                     && (!('username' in resource.data)
-                        || request.resource.data.username == resource.data.username)
+                        || request.resource.data.username == resource.data.username
+                        || (isAdmin() && usernameAvailable(request.resource.data.username)))
                     && (!('username' in request.resource.data)
                         || !isReservedUsername(request.resource.data.username)
                         || isAdmin())

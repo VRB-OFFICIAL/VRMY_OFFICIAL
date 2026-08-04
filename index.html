@@ -218,12 +218,26 @@
           <svg class="icon" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           your username: <span id="dm-my-username" style="color: var(--amber);"></span>
         </div>
+
+        <!-- admin-only: switch to a username the admin has already reserved -->
+        <div id="dm-username-switch" style="display:none; margin-top:10px;">
+          <div class="chat-input-row">
+            <input type="text" id="dm-username-switch-input" placeholder="switch to a reserved username" maxlength="20" style="flex:1;">
+            <button id="dm-username-switch-btn">Switch</button>
+          </div>
+          <div id="dm-username-switch-error" style="display:none; color: var(--red); font-size: 12px; margin-top:6px;"></div>
+          <div style="font-size:11.5px; color: var(--text-dim); font-style: italic; margin-top:6px;">
+            Only works for a name you've already reserved below.
+          </div>
+        </div>
+
         <div class="chat-input-row" style="margin-top:10px;">
           <input type="text" id="dm-roblox-input" placeholder="roblox username (optional)" maxlength="24" style="flex:1;">
           <button id="dm-roblox-save-btn">Save</button>
         </div>
         <div id="dm-roblox-note" style="font-size:11.5px; color: var(--text-dim); font-style: italic; margin-top:6px;">
-          This isn't verified &mdash; it just shows next to your name. Unlike your username, you can change it any time.
+          This isn't verified &mdash; it just shows next to your name. Unlike your username, you can change it any time
+          (admins can also switch to a reserved roblox name using the field above).
         </div>
       </div>
 

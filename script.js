@@ -73,6 +73,10 @@ if(CONFIGURED){
   const dmMyUsername = document.getElementById('dm-my-username');
   const dmRobloxInput = document.getElementById('dm-roblox-input');
   const dmRobloxSaveBtn = document.getElementById('dm-roblox-save-btn');
+  const dmUsernameSwitch = document.getElementById('dm-username-switch');
+  const dmUsernameSwitchInput = document.getElementById('dm-username-switch-input');
+  const dmUsernameSwitchBtn = document.getElementById('dm-username-switch-btn');
+  const dmUsernameSwitchError = document.getElementById('dm-username-switch-error');
   const dmConversationsList = document.getElementById('dm-conversations');
   const dmNewBtn = document.getElementById('dm-new-btn');
   const dmNewSearch = document.getElementById('dm-new-search');
@@ -135,6 +139,7 @@ if(CONFIGURED){
     dmSignedOut.style.display = user ? 'none' : '';
     dmSignedIn.style.display = user ? '' : 'none';
     adminReserved.style.display = isAdmin ? '' : 'none';
+    if(myUsername) dmUsernameSwitch.style.display = isAdmin ? '' : 'none';
     if(isAdmin){ loadReservedUsernames(); loadReservedRoblox(); }
     if(!user){
       if(dmUnsub){ dmUnsub(); dmUnsub = null; }
@@ -172,6 +177,7 @@ if(CONFIGURED){
     dmMyUsername.textContent = username;
     dmUsernamePicker.style.display = 'none';
     dmUsernameLocked.style.display = '';
+    dmUsernameSwitch.style.display = isAdmin ? '' : 'none';
     updateChatAccess();
   }
 
@@ -556,6 +562,35 @@ if(CONFIGURED){
     catch(e){ console.error('unclaim username failed', e); }
   }
 
+  async function switchUsername(){
+    if(!isAdmin || !auth || !auth.currentUser || !db) return;
+    const raw = dmUsernameSwitchInput.value.trim();
+    dmUsernameSwitchError.style.display = 'none';
+    if(!USERNAME_RE.test(raw)){
+      dmUsernameSwitchError.textContent = '3-20 characters, letters/numbers/underscore only.';
+      dmUsernameSwitchError.style.display = '';
+      return;
+    }
+    dmUsernameSwitchBtn.disabled = true;
+    try{
+      await db.collection('users').doc(auth.currentUser.uid).set({
+        username: raw,
+        usernameLower: raw.toLowerCase(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+      dmUsernameSwitchInput.value = '';
+      showUsernameLocked(raw);
+      loadReservedUsernames();
+    }catch(e){
+      console.error('switch username failed', e);
+      dmUsernameSwitchError.textContent = (e && e.code === 'permission-denied')
+        ? "You haven't reserved that username — reserve it below first."
+        : 'Something went wrong — try again.';
+      dmUsernameSwitchError.style.display = '';
+    }
+    dmUsernameSwitchBtn.disabled = false;
+  }
+
   async function reserveRoblox(){
     if(!isAdmin || !auth || !auth.currentUser || !db) return;
     const raw = reserveRobloxInput.value.trim().replace(/^@/, '');
@@ -774,6 +809,8 @@ if(CONFIGURED){
 
   dmUsernameClaimBtn.addEventListener('click', claimUsername);
   dmUsernameInput.addEventListener('keydown', e=>{ if(e.key === 'Enter') claimUsername(); });
+  dmUsernameSwitchBtn.addEventListener('click', switchUsername);
+  dmUsernameSwitchInput.addEventListener('keydown', e=>{ if(e.key === 'Enter') switchUsername(); });
   dmRobloxSaveBtn.addEventListener('click', saveRoblox);
   dmRobloxInput.addEventListener('keydown', e=>{ if(e.key === 'Enter') saveRoblox(); });
   reserveUsernameBtn.addEventListener('click', reserveUsername);
