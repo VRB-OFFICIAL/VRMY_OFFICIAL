@@ -463,7 +463,7 @@ if(CONFIGURED){
   // ---------- DIRECT MESSAGES (1-on-1, permanent username required) ----------
 
   const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
-  const RESERVED_WORDS_RE = /(dev|owner|admin|developer|helper|mod|moderator)/i;
+  const RESERVED_WORDS_RE = /(dev|owner|admin|developer|helper|mod|moderator|roblox)/i;
   const VRB_LOCKED_RE = /vrb/i;
   const SUPER_ADMIN_EMAIL = 'kokomona946@gmail.com';
 

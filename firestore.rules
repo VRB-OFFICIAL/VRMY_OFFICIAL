@@ -13,11 +13,11 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.email == 'kokomona946@gmail.com';
     }
 
-    // blocks "dev", "owner", "admin", "developer", "helper", "mod", "moderator"
-    // (any case, anywhere in the name) from being claimed by anyone except
-    // the two admin emails.
+    // blocks "dev", "owner", "admin", "developer", "helper", "mod", "moderator",
+    // "roblox" (any case, anywhere in the name) from being claimed by anyone
+    // except the two admin emails.
     function isReservedUsername(name) {
-      return name.lower().matches('.*(dev|owner|admin|developer|helper|mod|moderator).*');
+      return name.lower().matches('.*(dev|owner|admin|developer|helper|mod|moderator|roblox).*');
     }
 
     // blocks "vrb" (any case, anywhere in the name) for absolutely everyone
