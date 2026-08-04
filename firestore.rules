@@ -102,6 +102,9 @@ service cloud.firestore {
     // that's what lets an admin switch to a reserved name they own.
     // reserved words are blocked in both fields unless the caller is admin;
     // "vrb" is blocked for everyone except kokomona946@gmail.com specifically.
+    // displayName/role/photo are freely editable profile extras — displayName
+    // and role are just descriptive text (not identity), and photo is a
+    // base64 data URL capped well under Firestore's 1MB doc limit.
     match /users/{uid} {
       allow read: if request.auth != null;
       allow create: if request.auth != null && request.auth.uid == uid
@@ -111,7 +114,16 @@ service cloud.firestore {
                         || (request.resource.data.roblox is string
                             && request.resource.data.roblox.size() <= 24
                             && nameAllowed(request.resource.data.roblox)
-                            && robloxNameAvailable(request.resource.data.roblox)));
+                            && robloxNameAvailable(request.resource.data.roblox)))
+                    && (!('displayName' in request.resource.data)
+                        || (request.resource.data.displayName is string
+                            && request.resource.data.displayName.size() <= 40))
+                    && (!('role' in request.resource.data)
+                        || (request.resource.data.role is string
+                            && request.resource.data.role.size() <= 40))
+                    && (!('photo' in request.resource.data)
+                        || (request.resource.data.photo is string
+                            && request.resource.data.photo.size() <= 700000));
       allow update: if request.auth != null && request.auth.uid == uid
                     && (!('username' in resource.data)
                         || request.resource.data.username == resource.data.username
@@ -125,7 +137,16 @@ service cloud.firestore {
                         || (request.resource.data.roblox is string
                             && request.resource.data.roblox.size() <= 24
                             && nameAllowed(request.resource.data.roblox)
-                            && robloxNameAvailable(request.resource.data.roblox)));
+                            && robloxNameAvailable(request.resource.data.roblox)))
+                    && (!('displayName' in request.resource.data)
+                        || (request.resource.data.displayName is string
+                            && request.resource.data.displayName.size() <= 40))
+                    && (!('role' in request.resource.data)
+                        || (request.resource.data.role is string
+                            && request.resource.data.role.size() <= 40))
+                    && (!('photo' in request.resource.data)
+                        || (request.resource.data.photo is string
+                            && request.resource.data.photo.size() <= 700000));
     }
 
     // username registry: one doc per lowercase username, permanently claimed.

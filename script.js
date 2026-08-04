@@ -88,6 +88,17 @@ if(CONFIGURED){
   const dmMsgInput = document.getElementById('dm-msg-input');
   const dmSendBtn = document.getElementById('dm-send-btn');
 
+  const profileSection = document.getElementById('profile-section');
+  const profilePhotoPreview = document.getElementById('profile-photo-preview');
+  const profilePhotoInput = document.getElementById('profile-photo-input');
+  const profilePhotoBtn = document.getElementById('profile-photo-btn');
+  const profilePhotoRemoveBtn = document.getElementById('profile-photo-remove-btn');
+  const profilePhotoError = document.getElementById('profile-photo-error');
+  const profileNameInput = document.getElementById('profile-name-input');
+  const profileRoleInput = document.getElementById('profile-role-input');
+  const profileSaveBtn = document.getElementById('profile-save-btn');
+  const profileSaveError = document.getElementById('profile-save-error');
+
   const adminReserved = document.getElementById('admin-reserved');
   const reserveUsernameInput = document.getElementById('reserve-username-input');
   const reserveUsernameBtn = document.getElementById('reserve-username-btn');
@@ -104,6 +115,7 @@ if(CONFIGURED){
   let latestConvoDocs = [];
   let myUsername = null;
   let myRoblox = null;
+  let myPhoto = null;
 
   let latestKills = [];
   let latestSkill = [];
@@ -148,8 +160,15 @@ if(CONFIGURED){
       currentDmConvo = null;
       myUsername = null;
       myRoblox = null;
+      myPhoto = null;
       dmUsernameInput.value = '';
       dmRobloxInput.value = '';
+      profileSection.style.display = 'none';
+      profileNameInput.value = '';
+      profileRoleInput.value = '';
+      profilePhotoPreview.style.backgroundImage = '';
+      profilePhotoPreview.textContent = '';
+      profilePhotoRemoveBtn.style.display = 'none';
       dmUsernameError.style.display = 'none';
       dmThreadLabel.textContent = 'no conversation open';
       dmLog.innerHTML = '<div class="empty-state">open a DM above to see messages</div>';
@@ -193,7 +212,12 @@ if(CONFIGURED){
         db.collection('users').doc(user.uid).get().then(doc => {
           const existing = doc.exists ? doc.data().username : null;
           myRoblox = doc.exists ? (doc.data().roblox || null) : null;
+          myPhoto = doc.exists ? (doc.data().photo || null) : null;
           dmRobloxInput.value = myRoblox || '';
+          profileNameInput.value = doc.exists ? (doc.data().displayName || '') : '';
+          profileRoleInput.value = doc.exists ? (doc.data().role || '') : '';
+          renderProfilePreview();
+          profileSection.style.display = '';
           if(existing){
             showUsernameLocked(existing);
           } else {
@@ -497,6 +521,123 @@ if(CONFIGURED){
       }
     }
     dmRobloxSaveBtn.disabled = false;
+  }
+
+  // ---------- PROFILE (display name, role, picture) ----------
+
+  const MAX_PHOTO_BYTES = 700000; // ~700KB, keeps the doc well under Firestore's 1MB limit
+  const MAX_PHOTO_DIMENSION = 256; // downscaled square, plenty for an avatar
+
+  function renderProfilePreview(){
+    if(myPhoto){
+      profilePhotoPreview.style.backgroundImage = `url(${myPhoto})`;
+      profilePhotoPreview.textContent = '';
+      profilePhotoRemoveBtn.style.display = '';
+    } else {
+      profilePhotoPreview.style.backgroundImage = '';
+      const initial = (profileNameInput.value || myUsername || '?').trim().charAt(0).toUpperCase();
+      profilePhotoPreview.textContent = initial;
+      profilePhotoRemoveBtn.style.display = 'none';
+    }
+  }
+
+  function resizeImageFile(file){
+    return new Promise((resolve, reject)=>{
+      const reader = new FileReader();
+      reader.onerror = ()=> reject(new Error('read failed'));
+      reader.onload = ()=>{
+        const img = new Image();
+        img.onerror = ()=> reject(new Error('decode failed'));
+        img.onload = ()=>{
+          const size = MAX_PHOTO_DIMENSION;
+          const canvas = document.createElement('canvas');
+          canvas.width = size; canvas.height = size;
+          const ctx = canvas.getContext('2d');
+          // center-crop to a square, then scale down
+          const side = Math.min(img.width, img.height);
+          const sx = (img.width - side) / 2;
+          const sy = (img.height - side) / 2;
+          ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+          let quality = 0.85;
+          let dataUrl = canvas.toDataURL('image/jpeg', quality);
+          while(dataUrl.length > MAX_PHOTO_BYTES && quality > 0.3){
+            quality -= 0.15;
+            dataUrl = canvas.toDataURL('image/jpeg', quality);
+          }
+          if(dataUrl.length > MAX_PHOTO_BYTES){
+            reject(new Error('too large'));
+          } else {
+            resolve(dataUrl);
+          }
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handlePhotoChosen(){
+    const file = profilePhotoInput.files && profilePhotoInput.files[0];
+    profilePhotoInput.value = '';
+    if(!file || !auth || !auth.currentUser || !db) return;
+    profilePhotoError.style.display = 'none';
+    if(!file.type.startsWith('image/')){
+      profilePhotoError.textContent = 'Please choose an image file.';
+      profilePhotoError.style.display = '';
+      return;
+    }
+    profilePhotoBtn.disabled = true;
+    try{
+      const dataUrl = await resizeImageFile(file);
+      await db.collection('users').doc(auth.currentUser.uid).set({
+        photo: dataUrl,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+      myPhoto = dataUrl;
+      renderProfilePreview();
+    }catch(e){
+      console.error('photo upload failed', e);
+      profilePhotoError.textContent = (e && e.message === 'too large')
+        ? 'That image is too large even after compressing — try a smaller one.'
+        : 'Something went wrong — try a different image.';
+      profilePhotoError.style.display = '';
+    }
+    profilePhotoBtn.disabled = false;
+  }
+
+  async function removePhoto(){
+    if(!auth || !auth.currentUser || !db) return;
+    profilePhotoRemoveBtn.disabled = true;
+    try{
+      await db.collection('users').doc(auth.currentUser.uid).set({
+        photo: firebase.firestore.FieldValue.delete(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+      myPhoto = null;
+      renderProfilePreview();
+    }catch(e){ console.error('remove photo failed', e); }
+    profilePhotoRemoveBtn.disabled = false;
+  }
+
+  async function saveProfile(){
+    if(!auth || !auth.currentUser || !db) return;
+    const displayName = profileNameInput.value.trim();
+    const role = profileRoleInput.value.trim();
+    profileSaveError.style.display = 'none';
+    profileSaveBtn.disabled = true;
+    try{
+      await db.collection('users').doc(auth.currentUser.uid).set({
+        displayName: displayName || firebase.firestore.FieldValue.delete(),
+        role: role || firebase.firestore.FieldValue.delete(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+      renderProfilePreview();
+    }catch(e){
+      console.error('save profile failed', e);
+      profileSaveError.textContent = 'Something went wrong — try again.';
+      profileSaveError.style.display = '';
+    }
+    profileSaveBtn.disabled = false;
   }
 
   // ---------- ADMIN: RESERVED NAMES (usernames + roblox names) ----------
@@ -840,6 +981,12 @@ if(CONFIGURED){
   dmUsernameSwitchInput.addEventListener('keydown', e=>{ if(e.key === 'Enter') switchUsername(); });
   dmRobloxSaveBtn.addEventListener('click', saveRoblox);
   dmRobloxInput.addEventListener('keydown', e=>{ if(e.key === 'Enter') saveRoblox(); });
+  profilePhotoBtn.addEventListener('click', ()=> profilePhotoInput.click());
+  profilePhotoInput.addEventListener('change', handlePhotoChosen);
+  profilePhotoRemoveBtn.addEventListener('click', removePhoto);
+  profileSaveBtn.addEventListener('click', saveProfile);
+  profileNameInput.addEventListener('keydown', e=>{ if(e.key === 'Enter') saveProfile(); });
+  profileRoleInput.addEventListener('keydown', e=>{ if(e.key === 'Enter') saveProfile(); });
   reserveUsernameBtn.addEventListener('click', reserveUsername);
   reserveUsernameInput.addEventListener('keydown', e=>{ if(e.key === 'Enter') reserveUsername(); });
   reserveRobloxBtn.addEventListener('click', reserveRoblox);

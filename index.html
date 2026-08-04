@@ -241,6 +241,36 @@
         </div>
       </div>
 
+      <!-- profile: photo, display name, role -->
+      <div id="profile-section" style="display:none; margin-bottom:16px;">
+        <div class="panel-label" style="margin-bottom:8px;">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          profile
+        </div>
+        <div style="display:flex; gap:14px; align-items:flex-start; margin-bottom:12px;">
+          <div id="profile-photo-preview" style="width:64px; height:64px; flex-shrink:0; border-radius:50%; background:var(--amber-dim); background-size:cover; background-position:center; display:flex; align-items:center; justify-content:center; font-family:'Rajdhani',sans-serif; font-weight:700; font-size:22px; color:var(--bg); overflow:hidden;"></div>
+          <div style="flex:1; min-width:0;">
+            <input type="file" id="profile-photo-input" accept="image/*" style="display:none;">
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button id="profile-photo-btn" class="ghost-btn">Change Picture</button>
+              <button id="profile-photo-remove-btn" class="ghost-btn" style="display:none;">Remove</button>
+            </div>
+            <div id="profile-photo-error" style="display:none; color: var(--red); font-size: 12px; margin-top:6px;"></div>
+            <div style="font-size:11.5px; color: var(--text-dim); font-style: italic; margin-top:6px;">
+              Square images work best. Max 700KB.
+            </div>
+          </div>
+        </div>
+        <div class="chat-input-row" style="margin-bottom:8px;">
+          <input type="text" id="profile-name-input" placeholder="display name" maxlength="40" style="flex:1;">
+        </div>
+        <div class="chat-input-row" style="margin-bottom:8px;">
+          <input type="text" id="profile-role-input" placeholder="role (e.g. Moderator, Member)" maxlength="40" style="flex:1;">
+        </div>
+        <button id="profile-save-btn">Save Profile</button>
+        <div id="profile-save-error" style="display:none; color: var(--red); font-size: 12px; margin-top:8px;"></div>
+      </div>
+
       <!-- admin-only: reserve/unclaim usernames & roblox names so no one else can take them -->
       <div id="admin-reserved" style="display:none; margin-bottom:16px;">
         <div class="panel-label" style="margin-bottom:8px;">
